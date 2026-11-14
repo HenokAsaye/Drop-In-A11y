@@ -11,8 +11,8 @@ production) and committed at `packages/contracts/openapi.json`.
 | GET    | `/api/v1/lessons/{id}/captions`      | Caption track metadata               | Done   |
 | GET    | `/api/v1/lessons/{id}/offline`       | Offline package information          | 501    |
 | GET    | `/api/v1/lessons/{id}/documents`     | Learning documents                   | Done   |
-| GET    | `/api/v1/careers`                    | Career opportunities (`limit`, `offset`) | 501 |
-| GET    | `/api/v1/certificates/{id}/verify`   | Verify a certificate                 | 501    |
+| GET    | `/api/v1/careers`                    | Career opportunities (`limit`, `offset`) | Done |
+| GET    | `/api/v1/certificates/{id}/verify`   | Verify a certificate                 | Done   |
 
 ## Errors
 

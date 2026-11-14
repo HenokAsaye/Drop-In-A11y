@@ -8,4 +8,4 @@ class CertificateRepository:
         self._session = session
 
     async def get(self, certificate_id: str) -> Certificate | None:
-        raise NotImplementedError("CertificateRepository.get")
+        return await self._session.get(Certificate, certificate_id)
