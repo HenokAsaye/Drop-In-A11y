@@ -7,7 +7,7 @@ production) and committed at `packages/contracts/openapi.json`.
 | ------ | ------------------------------------ | ------------------------------------ | ------ |
 | GET    | `/health`                            | Liveness probe                       | Done   |
 | GET    | `/api/v1/lessons/{id}`               | Lesson information                   | Done   |
-| GET    | `/api/v1/lessons/{id}/transcript`    | Transcript (`?language=en\|am`)      | 501    |
+| GET    | `/api/v1/lessons/{id}/transcript`    | Transcript (`?language=en\|am`)      | Done   |
 | GET    | `/api/v1/lessons/{id}/captions`      | Caption track metadata               | Done   |
 | GET    | `/api/v1/lessons/{id}/offline`       | Offline package information          | 501    |
 | GET    | `/api/v1/lessons/{id}/documents`     | Learning documents                   | Done   |

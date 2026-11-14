@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -10,17 +11,18 @@ from app.core.config import Settings
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import create_app
+from app.models import Lesson, Transcript
 from tests.unit.factories import networking_lesson, networking_lesson_json
 
 
-@pytest.fixture
-async def client(tmp_path: Path) -> AsyncIterator[AsyncClient]:
+@asynccontextmanager
+async def _lesson_client(tmp_path: Path, lesson: Lesson) -> AsyncIterator[AsyncClient]:
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/lessons.db")
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as session:
-        session.add(networking_lesson())
+        session.add(lesson)
         await session.commit()
 
     app = create_app(
@@ -40,6 +42,26 @@ async def client(tmp_path: Path) -> AsyncIterator[AsyncClient]:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
     await engine.dispose()
+
+
+@pytest.fixture
+async def client(tmp_path: Path) -> AsyncIterator[AsyncClient]:
+    async with _lesson_client(tmp_path, networking_lesson()) as client:
+        yield client
+
+
+@pytest.fixture
+async def amharic_client(tmp_path: Path) -> AsyncIterator[AsyncClient]:
+    lesson = networking_lesson()
+    lesson.transcripts.append(
+        Transcript(
+            language="am",
+            label="Amharic",
+            segments=[{"start": 0, "end": 2, "text": "እንኳን ደህና መጡ"}],
+        )
+    )
+    async with _lesson_client(tmp_path, lesson) as client:
+        yield client
 
 
 async def test_get_lesson_returns_documented_shape(client: AsyncClient) -> None:
@@ -82,3 +104,59 @@ async def test_unknown_lesson_captions_and_documents_are_404(client: AsyncClient
         response = await client.get(path)
         assert response.status_code == 404
         assert response.json()["code"] == "not_found"
+
+
+async def test_english_transcript_returns_stored_segments(client: AsyncClient) -> None:
+    response = await client.get(
+        "/api/v1/lessons/networking-101/transcript", params={"language": "en"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "language": "en",
+        "segments": [{"start": 0.0, "end": 4.0, "text": "Welcome to our networking lesson."}],
+    }
+
+
+async def test_transcript_defaults_to_english(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/lessons/networking-101/transcript")
+
+    assert response.status_code == 200
+    assert response.json()["language"] == "en"
+    assert response.json()["segments"][0]["text"] == "Welcome to our networking lesson."
+
+
+async def test_amharic_transcript_returns_segments(amharic_client: AsyncClient) -> None:
+    response = await amharic_client.get(
+        "/api/v1/lessons/networking-101/transcript", params={"language": "am"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "language": "am",
+        "segments": [{"start": 0.0, "end": 2.0, "text": "እንኳን ደህና መጡ"}],
+    }
+
+
+async def test_missing_transcript_language_is_404(client: AsyncClient) -> None:
+    response = await client.get(
+        "/api/v1/lessons/networking-101/transcript", params={"language": "am"}
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Transcript 'networking-101:am' was not found",
+        "code": "not_found",
+        "resource": "Transcript",
+    }
+
+
+async def test_transcript_for_unknown_lesson_is_404(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/lessons/missing-lesson/transcript")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Lesson 'missing-lesson' was not found",
+        "code": "not_found",
+        "resource": "Lesson",
+    }
