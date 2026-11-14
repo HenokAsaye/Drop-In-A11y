@@ -35,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     register_exception_handlers(app)
+    app.state.settings = settings
 
     @app.get("/health", response_model=HealthOut, tags=["health"])
     async def health() -> HealthOut:
