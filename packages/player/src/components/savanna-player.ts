@@ -1,13 +1,30 @@
 import { PLAYER_TAG, type Lesson, type PlayerStatus } from '@savanna/contracts';
-import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
+import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit';
 
 import { Announcer } from '../accessibility/announcer';
 import { resolveShortcut } from '../accessibility/keyboard-shortcuts';
 import { LessonClient } from '../api/lesson-client';
+import { CaptionManager } from '../captions/caption-manager';
+import {
+  captionColorInputValue,
+  readStoredCaptionSettings,
+  sanitizeCaptionSettings,
+  saveCaptionSettings,
+} from '../captions/caption-settings';
+import {
+  CAPTION_BACKGROUND_SWATCH,
+  CAPTION_FONT_FAMILY,
+  DEFAULT_CAPTION_SETTINGS,
+  EMPTY_LESSON_MESSAGE,
+  LESSON_LOAD_FAILURE_MESSAGE,
+  MAX_CAPTION_FONT_SCALE,
+  MIN_CAPTION_FONT_SCALE,
+  PLAYBACK_RATES,
+  SEEK_STEP_SECONDS,
+  VOLUME_STEP,
+  type CaptionSettings,
+} from '../config';
 import { MediaController } from '../media/media-controller';
-
-const EMPTY_MESSAGE = 'This lesson has no video.';
-const FAILURE_MESSAGE = 'The lesson could not be loaded.';
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -36,6 +53,7 @@ export class SavannaPlayer extends LitElement {
     duration: { state: true },
     playbackRate: { state: true },
     isFullscreen: { state: true },
+    captionSettings: { state: true },
   };
 
   static override styles = css`
@@ -123,7 +141,8 @@ export class SavannaPlayer extends LitElement {
     }
 
     button:focus-visible,
-    input[type='range']:focus-visible {
+    input:focus-visible,
+    select:focus-visible {
       outline: 2px solid #38bdf8;
       outline-offset: 2px;
     }
@@ -169,6 +188,81 @@ export class SavannaPlayer extends LitElement {
       white-space: nowrap;
       border: 0;
     }
+
+    .caption-settings {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1rem;
+      width: 100%;
+      min-width: 0;
+      margin: 0;
+      padding: 0.5rem;
+      border: 0;
+      border-top: 1px solid rgba(148, 163, 184, 0.4);
+      background: rgba(15, 23, 42, 0.95);
+      color: #f8fafc;
+      font-family: ${unsafeCSS(CAPTION_FONT_FAMILY)};
+    }
+
+    .caption-settings legend {
+      padding: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .caption-field {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-height: 2.5rem;
+      font-size: 0.875rem;
+    }
+
+    .caption-settings select {
+      min-width: 2.5rem;
+      min-height: 2.5rem;
+      padding: 0.25rem 0.5rem;
+      color: #f8fafc;
+      background: #0f172a;
+      border: 1px solid #94a3b8;
+      border-radius: 4px;
+      font: inherit;
+    }
+
+    .caption-settings input[type='checkbox'] {
+      width: 1.5rem;
+      height: 1.5rem;
+      min-width: 1.5rem;
+      min-height: 1.5rem;
+      margin: 0;
+      accent-color: #38bdf8;
+    }
+
+    .caption-size {
+      flex: none;
+      width: 8rem;
+      min-width: 6rem;
+      height: 24px;
+    }
+
+    .caption-value {
+      min-width: 3rem;
+      font-size: 0.875rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .caption-color {
+      width: 2.5rem;
+      height: 2.5rem;
+      min-width: 2.5rem;
+      min-height: 2.5rem;
+      padding: 0.125rem;
+      border: 1px solid #94a3b8;
+      border-radius: 4px;
+      background: #0f172a;
+      cursor: pointer;
+    }
   `;
 
   declare lessonId: string;
@@ -184,6 +278,7 @@ export class SavannaPlayer extends LitElement {
   declare duration: number;
   declare playbackRate: number;
   declare isFullscreen: boolean;
+  declare captionSettings: CaptionSettings;
 
   private abortController: AbortController | null = null;
   private requestId = 0;
@@ -192,6 +287,9 @@ export class SavannaPlayer extends LitElement {
   private errorAnnouncer: Announcer | null = null;
   private connectedOnce = false;
   private _controller: MediaController | null = null;
+  private captionManager: CaptionManager | null = null;
+  private captionPreferencesLoaded = false;
+  private captionChoiceStored = false;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const action = resolveShortcut(event, this);
@@ -201,16 +299,16 @@ export class SavannaPlayer extends LitElement {
         void this.togglePlay();
         break;
       case 'seek-backward':
-        this.controller?.seekBy(-5);
+        this.controller?.seekBy(-SEEK_STEP_SECONDS);
         break;
       case 'seek-forward':
-        this.controller?.seekBy(5);
+        this.controller?.seekBy(SEEK_STEP_SECONDS);
         break;
       case 'volume-up':
-        this.controller?.changeVolume(0.1);
+        this.controller?.changeVolume(VOLUME_STEP);
         break;
       case 'volume-down':
-        this.controller?.changeVolume(-0.1);
+        this.controller?.changeVolume(-VOLUME_STEP);
         break;
       case 'toggle-mute':
         this.toggleMute();
@@ -236,6 +334,7 @@ export class SavannaPlayer extends LitElement {
     this.duration = 0;
     this.playbackRate = 1;
     this.isFullscreen = false;
+    this.captionSettings = { ...DEFAULT_CAPTION_SETTINGS };
   }
 
   get videoElement(): HTMLVideoElement | null {
@@ -271,11 +370,13 @@ export class SavannaPlayer extends LitElement {
   };
 
   override willUpdate(changed: PropertyValues<this>): void {
+    this.restoreCaptionSettings(changed);
     if (changed.has('lessonId') || changed.has('apiBase')) this.beginLoad();
   }
 
-  override updated(): void {
+  override updated(changed: PropertyValues<this>): void {
     this.syncAnnouncement();
+    this.syncCaptions(changed);
   }
 
   togglePlay = async (): Promise<void> => {
@@ -312,7 +413,7 @@ export class SavannaPlayer extends LitElement {
   };
 
   cyclePlaybackSpeed = (): void => {
-    const speeds = [0.75, 1, 1.25, 1.5, 2];
+    const speeds: readonly number[] = PLAYBACK_RATES;
     const currentIndex = speeds.indexOf(this.playbackRate);
     const nextSpeed = speeds[(currentIndex + 1) % speeds.length] ?? 1;
     this.controller?.setPlaybackRate(nextSpeed);
@@ -379,8 +480,10 @@ export class SavannaPlayer extends LitElement {
         <p id="player-error" class="status" role="alert" ?hidden=${!failed}></p>
         <div class="video-wrapper">
           <video
+            class="lesson-video"
             src=${videoSource}
             playsinline
+            crossorigin="anonymous"
             aria-label=${this.lesson?.title || 'Lesson video'}
             @play=${this.handleVideoPlay}
             @pause=${this.handleVideoPause}
@@ -469,9 +572,167 @@ export class SavannaPlayer extends LitElement {
             >
           </button>
         </div>
+        ${this.renderCaptionControls()}
       </section>
     `;
   }
+
+  private renderCaptionControls() {
+    const settings = this.captionSettings;
+    const size = Math.round(settings.fontScale * 100);
+    const textColor = captionColorInputValue(
+      settings.textColor,
+      DEFAULT_CAPTION_SETTINGS.textColor,
+    );
+    const backgroundColor = captionColorInputValue(
+      settings.backgroundColor,
+      CAPTION_BACKGROUND_SWATCH,
+    );
+    return html`
+      <fieldset class="caption-settings">
+        <legend>Captions</legend>
+        <span class="caption-field">
+          <label for="caption-enabled">Show captions</label>
+          <input
+            id="caption-enabled"
+            type="checkbox"
+            .checked=${settings.enabled}
+            @change=${this.onCaptionsEnabled}
+          />
+        </span>
+        <span class="caption-field">
+          <label for="caption-language">Language</label>
+          <select
+            id="caption-language"
+            .value=${settings.language}
+            @change=${this.onCaptionLanguage}
+          >
+            <option value="en" ?selected=${settings.language === 'en'}>English</option>
+            <option value="am" lang="am" ?selected=${settings.language === 'am'}>
+              Amharic (አማርኛ)
+            </option>
+          </select>
+        </span>
+        <span class="caption-field">
+          <label for="caption-size">Caption size</label>
+          <input
+            id="caption-size"
+            type="range"
+            class="control-range caption-size"
+            min=${MIN_CAPTION_FONT_SCALE}
+            max=${MAX_CAPTION_FONT_SCALE}
+            step="0.25"
+            .value=${String(settings.fontScale)}
+            aria-valuetext="${size}%"
+            @input=${this.onCaptionSize}
+          />
+          <span class="caption-value" aria-hidden="true">${size}%</span>
+        </span>
+        <span class="caption-field">
+          <label for="caption-text">Text color</label>
+          <input
+            id="caption-text"
+            class="caption-color"
+            type="color"
+            .value=${textColor}
+            ?disabled=${settings.highContrast}
+            @input=${this.onCaptionTextColor}
+          />
+        </span>
+        <span class="caption-field">
+          <label for="caption-background">Background color</label>
+          <input
+            id="caption-background"
+            class="caption-color"
+            type="color"
+            .value=${backgroundColor}
+            ?disabled=${settings.highContrast}
+            @input=${this.onCaptionBackgroundColor}
+          />
+        </span>
+        <span class="caption-field">
+          <label for="caption-contrast">
+            High contrast
+            <span class="visually-hidden">Black text on a yellow background</span>
+          </label>
+          <input
+            id="caption-contrast"
+            type="checkbox"
+            .checked=${settings.highContrast}
+            @change=${this.onCaptionContrast}
+          />
+        </span>
+      </fieldset>
+    `;
+  }
+
+  private restoreCaptionSettings(changed: PropertyValues<this>): void {
+    if (!this.captionPreferencesLoaded) {
+      this.captionPreferencesLoaded = true;
+      const stored = readStoredCaptionSettings();
+      this.captionChoiceStored = stored !== null;
+      this.captionSettings = sanitizeCaptionSettings(
+        stored ?? {
+          ...DEFAULT_CAPTION_SETTINGS,
+          language: this.captionLanguage || DEFAULT_CAPTION_SETTINGS.language,
+        },
+      );
+      return;
+    }
+    if (!this.captionChoiceStored && changed.has('captionLanguage')) {
+      this.captionSettings = sanitizeCaptionSettings({
+        ...this.captionSettings,
+        language: this.captionLanguage || DEFAULT_CAPTION_SETTINGS.language,
+      });
+    }
+  }
+
+  private syncCaptions(changed: PropertyValues<this>): void {
+    const video = this.videoElement;
+    if (!video) return;
+    let manager = this.captionManager;
+    const created = manager === null || !manager.manages(video);
+    if (manager === null || !manager.manages(video)) {
+      manager = new CaptionManager(video);
+      this.captionManager = manager;
+    }
+    if (created || changed.has('lesson')) manager.loadTracks(this.lesson?.captions ?? []);
+    if (created || changed.has('lesson') || changed.has('captionSettings')) {
+      manager.apply(this.captionSettings);
+    }
+  }
+
+  private commitCaptionSettings(patch: Partial<CaptionSettings>): void {
+    this.captionChoiceStored = true;
+    this.captionSettings = sanitizeCaptionSettings({ ...this.captionSettings, ...patch });
+    saveCaptionSettings(this.captionSettings);
+  }
+
+  private readonly onCaptionsEnabled = (event: Event): void => {
+    this.commitCaptionSettings({ enabled: (event.target as HTMLInputElement).checked });
+  };
+
+  private readonly onCaptionLanguage = (event: Event): void => {
+    this.commitCaptionSettings({ language: (event.target as HTMLSelectElement).value });
+  };
+
+  private readonly onCaptionSize = (event: Event): void => {
+    const fontScale = Number((event.target as HTMLInputElement).value);
+    if (!Number.isFinite(fontScale)) return;
+    this.commitCaptionSettings({ fontScale });
+  };
+
+  private readonly onCaptionTextColor = (event: Event): void => {
+    this.commitCaptionSettings({ textColor: (event.target as HTMLInputElement).value });
+  };
+
+  private readonly onCaptionBackgroundColor = (event: Event): void => {
+    this.commitCaptionSettings({ backgroundColor: (event.target as HTMLInputElement).value });
+  };
+
+  private readonly onCaptionContrast = (event: Event): void => {
+    this.commitCaptionSettings({ highContrast: (event.target as HTMLInputElement).checked });
+  };
 
   private beginLoad(): void {
     this.abortController?.abort();
@@ -506,7 +767,9 @@ export class SavannaPlayer extends LitElement {
     } catch (error: unknown) {
       if (!this.isCurrent(requestId, controller) || isAbortError(error)) return;
       const message =
-        error instanceof Error && error.message.trim() ? error.message : FAILURE_MESSAGE;
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : LESSON_LOAD_FAILURE_MESSAGE;
       this.setOutcome('error', message, null);
       this.dispatchEvent(
         new CustomEvent('savanna-error', {
@@ -560,7 +823,7 @@ export class SavannaPlayer extends LitElement {
 function describeLesson(lesson: Lesson): { status: 'ready' | 'empty'; message: string } {
   const video = lesson.media?.video;
   if (typeof video !== 'string' || video.trim() === '') {
-    return { status: 'empty', message: EMPTY_MESSAGE };
+    return { status: 'empty', message: EMPTY_LESSON_MESSAGE };
   }
   const title = lesson.title.trim();
   return { status: 'ready', message: title === '' ? 'Lesson ready.' : `Lesson ready: ${title}.` };

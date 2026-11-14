@@ -75,8 +75,25 @@ Lesson:          networking-101
 | 200% zoom | Zoom to 200% | No loss of content or function, no horizontal scroll | Pass | Controls wrap with `flex-wrap: wrap`, no fixed container widths |
 | Sound off | Mute device | All information available visually | Pass | Controls convey state via icons and text, not color alone | |
 
+## Session 2026-11-14 — English and Amharic captions (Spec 4.2)
+
+```
+Date:            2026-11-14
+Tester:          Member 2
+Build / commit:  dev (uncommitted caption work)
+AT + version:    None. Sighted browser check only; NVDA and TalkBack were not used.
+Browser + OS:    Chromium on Linux. Noto Sans Ethiopic is installed.
+Lesson:          Local WebVTT fixture, plus the demo page (the lesson API was not running)
+```
+
+| Check | Steps | Expected | Result (Pass/Fail) | Notes / issue link |
+| ----- | ----- | -------- | ------------------ | ------------------ |
+| Captions EN / AM | Open a page that uses the player's `::cue` font stack and a WebVTT cue `አማርኛ እንኳን ደህና መጡ`. Switch the demo language control to Amharic. | Ethiopic letters, not empty boxes. English and Amharic can be chosen. | Pass | The cue and a 64px sample both drew Ethiopic letters. The demo language list is English and Amharic (አማርኛ). The choice is saved and restored on reload (Playwright, desktop and mobile). The seeded networking-101 file was not played. |
+| Caption customization | Change caption size and background in the demo, reload, and check the high-contrast control. | Size, colors, and high contrast are available and the size and background survive reload. | Pass | Playwright set size to 150% and background to `#00aa00`; both were still set after reload. High contrast is a checkbox labeled "High contrast" and forces black text on yellow in the cue rule. A painted cue on the seeded lesson was not checked. |
+
 ## Known limitations
 
 | Date | Limitation | Impact | Planned fix |
 | ---- | ---------- | ------ | ----------- |
-|      |            |        |             |
+| 2026-11-14 | The demo end-to-end job does not serve the seeded networking-101 video or WebVTT files | Language, size, and color checks cover the controls and the saved settings. They do not show a cue on that lesson. | Repeat the cue check when the lesson seed is available |
+| 2026-11-14 | The Ethiopic face is requested from Google Fonts | If that request is blocked, captions use an Ethiopic font already on the computer (Noto Sans Ethiopic, Abyssinica SIL, Nyala, or Ebrima). This Linux machine already has Noto Sans Ethiopic, and that is what drew the letters. | None. The font stack is the fallback |
