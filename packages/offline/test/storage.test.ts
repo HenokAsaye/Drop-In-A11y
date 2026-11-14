@@ -52,13 +52,6 @@ describe('offline storage (spec 4.6)', () => {
   });
 });
 
-describe('download manager (spec 4.6)', () => {
-  it.todo('downloads audio, transcripts, lightweight HTML and documents for the chosen mode');
-  it.todo('reports progress in bytes');
-  it.todo('marks a download failed and cleans up partial files on network error');
-  it.todo('re-downloads when the package version changes');
-});
-
 describe('service worker (spec 4.6)', () => {
   it.todo('serves downloaded lesson resources cache-first');
   it.todo('the offline lesson page works after disconnecting (Playwright e2e)');
