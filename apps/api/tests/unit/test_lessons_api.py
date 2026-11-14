@@ -74,10 +74,23 @@ async def test_documents_are_absolute_urls(client: AsyncClient) -> None:
     assert response.json() == networking_lesson_json()["documents"]
 
 
+async def test_offline_package_returns_declared_resources(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/lessons/networking-101/offline")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["lessonId"] == "networking-101"
+    assert data["version"]
+    assert len(data["resources"]) > 0
+    for resource in data["resources"]:
+        assert resource["url"].startswith("http")
+
+
 async def test_unknown_lesson_captions_and_documents_are_404(client: AsyncClient) -> None:
     for path in (
         "/api/v1/lessons/missing-lesson/captions",
         "/api/v1/lessons/missing-lesson/documents",
+        "/api/v1/lessons/missing-lesson/offline",
     ):
         response = await client.get(path)
         assert response.status_code == 404
