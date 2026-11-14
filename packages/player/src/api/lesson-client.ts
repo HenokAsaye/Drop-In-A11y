@@ -13,8 +13,16 @@ export class LessonClient {
     protected readonly fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
   ) {}
 
-  getLesson(_lessonId: string, _signal?: AbortSignal): Promise<Lesson> {
-    throw new Error('Not implemented: LessonClient.getLesson');
+  async getLesson(lessonId: string, signal?: AbortSignal): Promise<Lesson> {
+    const base = this.apiBase.replace(/\/+$/, '');
+    const url = `${base}/api/v1/lessons/${encodeURIComponent(lessonId)}`;
+    const response = await this.fetchImpl(url, { signal });
+    if (!response.ok) {
+      throw new Error(
+        `Failed to load lesson '${lessonId}': ${response.status} ${response.statusText}`,
+      );
+    }
+    return (await response.json()) as Lesson;
   }
 
   getTranscript(_lessonId: string, _language: string): Promise<Transcript> {
