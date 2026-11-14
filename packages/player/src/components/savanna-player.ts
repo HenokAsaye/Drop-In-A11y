@@ -35,6 +35,7 @@ import {
   VOLUME_STEP,
   type CaptionSettings,
 } from '../config';
+import { AudioDescriptionTrack } from '../audio-description/audio-description-track';
 import { MediaController } from '../media/media-controller';
 import { MediaSync } from '../media/media-sync';
 import { SIGN_LANGUAGE_TAG, type SignLanguageWindow } from '../sign-language/sign-language-window';
@@ -94,6 +95,7 @@ export class SavannaPlayer extends LitElement {
     captionSettings: { state: true },
     signLanguageOpen: { state: true },
     signLanguageSrc: { state: true },
+    audioDescriptionEnabled: { state: true },
   };
 
   static override styles = css`
@@ -359,6 +361,7 @@ export class SavannaPlayer extends LitElement {
   declare captionSettings: CaptionSettings;
   declare signLanguageOpen: boolean;
   declare signLanguageSrc: string;
+  declare audioDescriptionEnabled: boolean;
 
   private abortController: AbortController | null = null;
   private requestId = 0;
@@ -373,6 +376,7 @@ export class SavannaPlayer extends LitElement {
   private captionChoiceStored = false;
   private mediaSync: MediaSync | null = null;
   private signLanguageDetach: (() => void) | null = null;
+  private audioDescription: AudioDescriptionTrack | null = null;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const action = resolveShortcut(event, this);
@@ -425,6 +429,7 @@ export class SavannaPlayer extends LitElement {
     this.captionSettings = { ...DEFAULT_CAPTION_SETTINGS };
     this.signLanguageOpen = false;
     this.signLanguageSrc = '';
+    this.audioDescriptionEnabled = false;
   }
 
   get videoElement(): HTMLVideoElement | null {
@@ -433,6 +438,10 @@ export class SavannaPlayer extends LitElement {
 
   get signLanguageWindow(): SignLanguageWindow | null {
     return this.renderRoot?.querySelector<SignLanguageWindow>(SIGN_LANGUAGE_TAG) ?? null;
+  }
+
+  get audioDescriptionElement(): HTMLAudioElement | null {
+    return this.audioDescription?.enabled ? this.audioDescription.element : null;
   }
 
   get controller(): MediaController | null {
@@ -454,6 +463,7 @@ export class SavannaPlayer extends LitElement {
   override disconnectedCallback(): void {
     this.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
+    this.releaseAudioDescription();
     this.signLanguageDetach?.();
     this.signLanguageDetach = null;
     this.mediaSync?.dispose();
@@ -487,6 +497,9 @@ export class SavannaPlayer extends LitElement {
     this.syncCaptions(changed);
     if (changed.has('signLanguageOpen') || changed.has('lesson')) {
       void this.syncSignLanguage();
+    }
+    if (changed.has('audioDescriptionEnabled') || changed.has('lesson')) {
+      this.syncAudioDescription();
     }
   }
 
@@ -546,6 +559,41 @@ export class SavannaPlayer extends LitElement {
     this.signLanguageOpen = false;
     void this.syncSignLanguage();
   };
+
+  toggleAudioDescription = (): void => {
+    this.audioDescriptionEnabled = !this.audioDescriptionEnabled;
+  };
+
+  private get audioDescriptionSource(): string {
+    const value = this.lesson?.media?.audioDescription;
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private syncAudioDescription(): void {
+    const source = this.audioDescriptionSource;
+    if (source === '') {
+      this.audioDescriptionEnabled = false;
+      this.releaseAudioDescription();
+      return;
+    }
+    if (!this.audioDescriptionEnabled) {
+      this.releaseAudioDescription();
+      return;
+    }
+    const video = this.videoElement;
+    if (!video) return;
+    if (!this.audioDescription || this.audioDescription.source !== source) {
+      this.releaseAudioDescription();
+      this.audioDescription = new AudioDescriptionTrack(source);
+    }
+    this.mediaSync ??= new MediaSync(video);
+    this.audioDescription.enable(video, this.mediaSync);
+  }
+
+  private releaseAudioDescription(): void {
+    this.audioDescription?.disable();
+    this.audioDescription = null;
+  }
 
   private async syncSignLanguage(): Promise<void> {
     if (!this.videoElement) return;
@@ -705,6 +753,7 @@ export class SavannaPlayer extends LitElement {
     const failed = this.status === 'error';
     const videoSource = this.lesson?.media?.video ?? this.videoSrc;
     const signLanguageSource = this.lesson?.media?.signLanguage ?? this.signLanguageSrc;
+    const audioDescriptionSource = this.audioDescriptionSource;
     return html`
       <section
         class="player-container"
@@ -831,6 +880,20 @@ export class SavannaPlayer extends LitElement {
                 >
                   <span aria-hidden="true">🤟</span>
                   <span class="visually-hidden">Ethiopian Sign Language</span>
+                </button>`
+              : nothing
+          }
+          ${
+            audioDescriptionSource
+              ? html`<button
+                  type="button"
+                  class="control-btn audio-description-btn"
+                  @click=${this.toggleAudioDescription}
+                  aria-label="Audio description"
+                  aria-pressed=${this.audioDescriptionEnabled ? 'true' : 'false'}
+                >
+                  <span aria-hidden="true">AD</span>
+                  <span class="visually-hidden">Audio description</span>
                 </button>`
               : nothing
           }
