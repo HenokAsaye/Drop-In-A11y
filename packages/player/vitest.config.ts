@@ -5,5 +5,12 @@ export default defineProject({
     name: 'player',
     environment: 'happy-dom',
     include: ['test/**/*.test.ts'],
+    environmentOptions: {
+      happyDOM: {
+        settings: {
+          handleDisabledFileLoadingAsSuccess: true,
+        },
+      },
+    },
   },
 });
