@@ -6,11 +6,11 @@ production) and committed at `packages/contracts/openapi.json`.
 | Method | Endpoint                             | Purpose                              | Status |
 | ------ | ------------------------------------ | ------------------------------------ | ------ |
 | GET    | `/health`                            | Liveness probe                       | Done   |
-| GET    | `/api/v1/lessons/{id}`               | Lesson information                   | 501    |
+| GET    | `/api/v1/lessons/{id}`               | Lesson information                   | Done   |
 | GET    | `/api/v1/lessons/{id}/transcript`    | Transcript (`?language=en\|am`)      | 501    |
-| GET    | `/api/v1/lessons/{id}/captions`      | Caption track metadata               | 501    |
+| GET    | `/api/v1/lessons/{id}/captions`      | Caption track metadata               | Done   |
 | GET    | `/api/v1/lessons/{id}/offline`       | Offline package information          | 501    |
-| GET    | `/api/v1/lessons/{id}/documents`     | Learning documents                   | 501    |
+| GET    | `/api/v1/lessons/{id}/documents`     | Learning documents                   | Done   |
 | GET    | `/api/v1/careers`                    | Career opportunities (`limit`, `offset`) | 501 |
 | GET    | `/api/v1/certificates/{id}/verify`   | Verify a certificate                 | 501    |
 
