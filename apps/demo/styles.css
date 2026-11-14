@@ -1,0 +1,30 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, 'Noto Sans Ethiopic', sans-serif;
+  line-height: 1.5;
+  color: #1a1a1a;
+  background: #ffffff;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: 1rem;
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+}
+
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #ffffff;
+  outline: 3px solid #1a5fb4;
+}
+
+.site-name {
+  font-weight: 700;
+}

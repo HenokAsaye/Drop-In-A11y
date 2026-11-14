@@ -1,0 +1,20 @@
+{
+  "name": "@savanna/player",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Savanna BridgePlayer — the <savanna-player> Web Component and its embeddable bundle.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@savanna/career": "workspace:*",
+    "@savanna/contracts": "workspace:*",
+    "@savanna/offline": "workspace:*",
+    "lit": "^3.3.3"
+  }
+}

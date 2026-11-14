@@ -1,0 +1,42 @@
+# Local stack: PostgreSQL + API + a static media server standing in for object storage.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: savanna
+      POSTGRES_PASSWORD: savanna
+      POSTGRES_DB: savanna
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U savanna']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    environment:
+      SAVANNA_ENVIRONMENT: development
+      SAVANNA_DATABASE_URL: postgresql+asyncpg://savanna:savanna@db:5432/savanna
+      SAVANNA_CORS_ORIGINS: http://localhost:5173,http://localhost:4173
+      SAVANNA_MEDIA_BASE_URL: http://localhost:8080
+      SAVANNA_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - '8000:8000'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  media:
+    image: nginx:1.29-alpine
+    ports:
+      - '8080:80'
+    volumes:
+      - ./assets:/usr/share/nginx/html:ro
+      - ./infra/media/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  db-data:

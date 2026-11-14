@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Introduction to Computer Networking — Example Learning Site</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <!-- The only integration step a host website needs: -->
+    <script src="bridge-player.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to lesson</a>
+    <header>
+      <p class="site-name">Example Learning Site</p>
+    </header>
+
+    <main id="main">
+      <h1>Introduction to Computer Networking</h1>
+      <p>This page is an ordinary host website. The lesson player below is the embedded plugin.</p>
+
+      <savanna-player lesson-id="networking-101" api-base="__SAVANNA_API_BASE__"></savanna-player>
+
+      <section aria-labelledby="careers-heading">
+        <h2 id="careers-heading">Career opportunities</h2>
+        <savanna-job-card></savanna-job-card>
+      </section>
+    </main>
+
+    <footer>
+      <p>Demo host page for Savanna BridgePlayer.</p>
+    </footer>
+  </body>
+</html>

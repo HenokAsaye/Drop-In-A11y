@@ -1,0 +1,11 @@
+pnpm-lock.yaml
+dist/
+coverage/
+playwright-report/
+test-results/
+apps/api/
+apps/demo/public/bridge-player*
+packages/contracts/openapi.json
+packages/contracts/src/generated/
+assets/
+*.md

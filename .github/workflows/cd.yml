@@ -1,0 +1,112 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  api-image:
+    name: Publish API image to GHCR
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}/api
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v7
+        with:
+          context: apps/api
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  plugin-release:
+    name: Release plugin bundle
+    needs: ci
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          files: |
+            packages/player/dist/bridge-player.js
+            packages/player/dist/bridge-player.es.js
+            packages/offline/dist/savanna-sw.js
+
+  # Enable by setting repository variable DEPLOY_DEMO_PAGES=true and Pages source to "GitHub Actions".
+  demo-build:
+    name: Build demo site
+    needs: ci
+    if: vars.DEPLOY_DEMO_PAGES == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          DEMO_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_SAVANNA_API_BASE: ${{ vars.SAVANNA_API_BASE }}
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/demo/dist
+
+  demo-deploy:
+    name: Deploy demo to GitHub Pages
+    needs: demo-build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

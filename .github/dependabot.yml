@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      lint-and-test:
+        patterns: ['eslint*', '@eslint/*', 'typescript-eslint', 'prettier', 'vitest', '@vitest/*']
+  - package-ecosystem: uv
+    directory: /apps/api
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /apps/api
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

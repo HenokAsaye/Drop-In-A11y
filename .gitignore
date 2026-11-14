@@ -1,0 +1,51 @@
+# Specification source document (kept locally, not versioned)
+Savanna_BridgePlayer_Implementation_Specification.docx
+
+# Dependencies
+node_modules/
+.pnpm-store/
+.venv/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+apps/demo/public/bridge-player*
+apps/demo/public/savanna-sw.js
+
+# Test output
+coverage/
+.coverage
+htmlcov/
+playwright-report/
+test-results/
+blob-report/
+.pytest_cache/
+junit*.xml
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Large media assets are served from object storage, not git.
+assets/videos/*
+assets/audio/*
+assets/sign-language/*
+assets/audio-description/*
+!assets/**/.gitkeep
+!assets/**/README.md
+
+# Editors / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.swp
+*.log

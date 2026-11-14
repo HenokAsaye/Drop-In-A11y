@@ -1,0 +1,1059 @@
+{
+  "components": {
+    "schemas": {
+      "CaptionTrackOut": {
+        "properties": {
+          "label": {
+            "examples": [
+              "Amharic"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "language": {
+            "examples": [
+              "am"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "language",
+          "label",
+          "url"
+        ],
+        "title": "CaptionTrackOut",
+        "type": "object"
+      },
+      "CareerOut": {
+        "properties": {
+          "accommodations": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accommodations"
+          },
+          "applicationUrl": {
+            "title": "Applicationurl",
+            "type": "string"
+          },
+          "audioSummaryUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audiosummaryurl"
+          },
+          "certificateVerificationUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certificateverificationurl"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "organization": {
+            "title": "Organization",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "organization",
+          "description",
+          "applicationUrl"
+        ],
+        "title": "CareerOut",
+        "type": "object"
+      },
+      "CareerPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CareerOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CareerPage",
+        "type": "object"
+      },
+      "CertificateVerificationOut": {
+        "properties": {
+          "courseTitle": {
+            "title": "Coursetitle",
+            "type": "string"
+          },
+          "holderName": {
+            "title": "Holdername",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "title": "Issuedat",
+            "type": "string"
+          },
+          "issuer": {
+            "title": "Issuer",
+            "type": "string"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revokedat"
+          },
+          "status": {
+            "enum": [
+              "valid",
+              "revoked"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "valid",
+          "status",
+          "holderName",
+          "courseTitle",
+          "issuer",
+          "issuedAt"
+        ],
+        "title": "CertificateVerificationOut",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "resource": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource"
+          }
+        },
+        "required": [
+          "detail",
+          "code"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthOut": {
+        "properties": {
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "status": {
+            "const": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "environment"
+        ],
+        "title": "HealthOut",
+        "type": "object"
+      },
+      "LessonDocumentOut": {
+        "properties": {
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "pdf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdf"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "language"
+        ],
+        "title": "LessonDocumentOut",
+        "type": "object"
+      },
+      "LessonOut": {
+        "properties": {
+          "captions": {
+            "items": {
+              "$ref": "#/components/schemas/CaptionTrackOut"
+            },
+            "title": "Captions",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/LessonDocumentOut"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "id": {
+            "examples": [
+              "networking-101"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "media": {
+            "$ref": "#/components/schemas/MediaSources"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptRef"
+            },
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "language",
+          "media",
+          "captions",
+          "transcripts",
+          "documents"
+        ],
+        "title": "LessonOut",
+        "type": "object"
+      },
+      "MediaSources": {
+        "properties": {
+          "audio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio"
+          },
+          "audioDescription": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audiodescription"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster"
+          },
+          "signLanguage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signlanguage"
+          },
+          "video": {
+            "title": "Video",
+            "type": "string"
+          }
+        },
+        "required": [
+          "video"
+        ],
+        "title": "MediaSources",
+        "type": "object"
+      },
+      "OfflinePackageOut": {
+        "properties": {
+          "lessonId": {
+            "title": "Lessonid",
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineResource"
+            },
+            "title": "Resources",
+            "type": "array"
+          },
+          "version": {
+            "description": "Changes whenever the lesson content changes; used as cache key",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lessonId",
+          "version",
+          "resources"
+        ],
+        "title": "OfflinePackageOut",
+        "type": "object"
+      },
+      "OfflineResource": {
+        "properties": {
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "type": {
+            "enum": [
+              "audio",
+              "transcript",
+              "captions",
+              "html",
+              "document"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "url"
+        ],
+        "title": "OfflineResource",
+        "type": "object"
+      },
+      "TranscriptOut": {
+        "properties": {
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "language",
+          "segments"
+        ],
+        "title": "TranscriptOut",
+        "type": "object"
+      },
+      "TranscriptRef": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "language",
+          "label",
+          "url"
+        ],
+        "title": "TranscriptRef",
+        "type": "object"
+      },
+      "TranscriptSegment": {
+        "properties": {
+          "end": {
+            "description": "Segment end time in seconds",
+            "minimum": 0.0,
+            "title": "End",
+            "type": "number"
+          },
+          "start": {
+            "description": "Segment start time in seconds",
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "text"
+        ],
+        "title": "TranscriptSegment",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Lesson, resource, career and certificate metadata for Savanna BridgePlayer.",
+    "title": "Savanna BridgePlayer API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/careers": {
+      "get": {
+        "description": "Accessible career opportunities.",
+        "operationId": "list_careers_api_v1_careers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareerPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Careers",
+        "tags": [
+          "careers"
+        ]
+      }
+    },
+    "/api/v1/certificates/{certificate_id}/verify": {
+      "get": {
+        "description": "Verify that a certificate was issued and has not been revoked.",
+        "operationId": "verify_certificate_api_v1_certificates__certificate_id__verify_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "certificate_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Certificate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateVerificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Certificate",
+        "tags": [
+          "certificates"
+        ]
+      }
+    },
+    "/api/v1/lessons/{lesson_id}": {
+      "get": {
+        "description": "Lesson metadata and resource URLs for the player.",
+        "operationId": "get_lesson_api_v1_lessons__lesson_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "networking-101"
+              ],
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Lesson",
+        "tags": [
+          "lessons"
+        ]
+      }
+    },
+    "/api/v1/lessons/{lesson_id}/captions": {
+      "get": {
+        "description": "WebVTT caption track metadata.",
+        "operationId": "get_captions_api_v1_lessons__lesson_id__captions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "networking-101"
+              ],
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CaptionTrackOut"
+                  },
+                  "title": "Response Get Captions Api V1 Lessons  Lesson Id  Captions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Captions",
+        "tags": [
+          "lessons"
+        ]
+      }
+    },
+    "/api/v1/lessons/{lesson_id}/documents": {
+      "get": {
+        "description": "Accessible HTML and tagged PDF learning documents.",
+        "operationId": "get_documents_api_v1_lessons__lesson_id__documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "networking-101"
+              ],
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LessonDocumentOut"
+                  },
+                  "title": "Response Get Documents Api V1 Lessons  Lesson Id  Documents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Documents",
+        "tags": [
+          "lessons"
+        ]
+      }
+    },
+    "/api/v1/lessons/{lesson_id}/offline": {
+      "get": {
+        "description": "Resources a learner can download for offline use.",
+        "operationId": "get_offline_package_api_v1_lessons__lesson_id__offline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "networking-101"
+              ],
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflinePackageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Offline Package",
+        "tags": [
+          "lessons"
+        ]
+      }
+    },
+    "/api/v1/lessons/{lesson_id}/transcript": {
+      "get": {
+        "description": "Timestamped transcript segments in the requested language.",
+        "operationId": "get_transcript_api_v1_lessons__lesson_id__transcript_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "networking-101"
+              ],
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "default": "en",
+              "examples": [
+                "am"
+              ],
+              "maxLength": 16,
+              "minLength": 2,
+              "title": "Language",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Transcript",
+        "tags": [
+          "lessons"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  }
+}

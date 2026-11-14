@@ -1,0 +1,17 @@
+{
+  "name": "@savanna/career",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Career gateway: accessible job cards and certificate verification links.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@savanna/contracts": "workspace:*",
+    "lit": "^3.3.3"
+  }
+}

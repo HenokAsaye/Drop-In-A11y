@@ -1,0 +1,65 @@
+[project]
+name = "savanna-api"
+version = "0.1.0"
+description = "Savanna BridgePlayer API — lesson, resource, career and certificate metadata."
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.120",
+    "uvicorn[standard]>=0.38",
+    "pydantic>=2.12",
+    "pydantic-settings>=2.11",
+    "sqlalchemy[asyncio]>=2.0.44",
+    "asyncpg>=0.30",
+    "alembic>=1.17",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "mypy>=1.18",
+    "pytest>=8.4",
+    "pytest-asyncio>=1.2",
+    "pytest-cov>=7.0",
+    "ruff>=0.14",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ASYNC", "S", "SIM", "RUF"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app", "scripts", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["asyncpg.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -m 'not integration'"
+markers = ["integration: tests that hit the database"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
