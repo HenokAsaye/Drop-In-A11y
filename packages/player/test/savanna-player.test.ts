@@ -356,7 +356,7 @@ describe('<savanna-player> video controls (spec 4.1)', () => {
     expect(volumeInput?.getAttribute('aria-label')).toBe('Volume');
 
     const speedBtn = player.shadowRoot?.querySelector('button.speed-btn');
-    expect(speedBtn?.getAttribute('aria-label')).toBe('Playback speed');
+    expect(speedBtn?.getAttribute('aria-label')).toBe('Playback speed: 1x');
     expect(speedBtn?.querySelector('.visually-hidden')?.textContent).toContain('Playback speed');
 
     const fullscreenBtn = player.shadowRoot?.querySelector('button.fullscreen-btn');
@@ -402,8 +402,10 @@ describe('<savanna-player> video controls (spec 4.1)', () => {
     // Speed cycle
     const speedBtn = player.shadowRoot?.querySelector('button.speed-btn') as HTMLButtonElement;
     expect(speedBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('1x');
+    expect(speedBtn.getAttribute('aria-label')).toBe('Playback speed: 1x');
     player.cyclePlaybackSpeed();
     await player.updateComplete;
     expect(speedBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('1.25x');
+    expect(speedBtn.getAttribute('aria-label')).toBe('Playback speed: 1.25x');
   });
 });

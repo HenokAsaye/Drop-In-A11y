@@ -138,15 +138,18 @@ export class SavannaPlayer extends LitElement {
 
     .control-range {
       flex: 1;
-      height: 6px;
+      min-width: 0;
+      height: 24px;
       cursor: pointer;
       accent-color: #38bdf8;
+      background: transparent;
     }
 
     .volume-container {
       display: flex;
       align-items: center;
-      width: 80px;
+      width: 100px;
+      min-width: 60px;
     }
 
     .time-display {
@@ -448,7 +451,7 @@ export class SavannaPlayer extends LitElement {
             type="button"
             class="control-btn speed-btn"
             @click=${this.cyclePlaybackSpeed}
-            aria-label="Playback speed"
+            aria-label="Playback speed: ${this.playbackRate}x"
           >
             <span aria-hidden="true">${this.playbackRate}x</span>
             <span class="visually-hidden">Playback speed: ${this.playbackRate}x</span>
