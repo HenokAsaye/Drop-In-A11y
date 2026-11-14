@@ -36,6 +36,8 @@ import {
   type CaptionSettings,
 } from '../config';
 import { MediaController } from '../media/media-controller';
+import { MediaSync } from '../media/media-sync';
+import { SIGN_LANGUAGE_TAG, type SignLanguageWindow } from '../sign-language/sign-language-window';
 import '../transcript/transcript-panel';
 import type {
   TranscriptLanguageDetail,
@@ -90,6 +92,8 @@ export class SavannaPlayer extends LitElement {
     transcriptLanguage: { state: true },
     transcriptSegments: { state: true },
     captionSettings: { state: true },
+    signLanguageOpen: { state: true },
+    signLanguageSrc: { state: true },
   };
 
   static override styles = css`
@@ -174,6 +178,11 @@ export class SavannaPlayer extends LitElement {
 
     .control-btn:hover {
       background: rgba(255, 255, 255, 0.1);
+    }
+
+    button[aria-pressed='true'] {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
     }
 
     button:focus-visible,
@@ -348,6 +357,8 @@ export class SavannaPlayer extends LitElement {
   declare transcriptLanguage: 'en' | 'am';
   declare transcriptSegments: TranscriptSegment[];
   declare captionSettings: CaptionSettings;
+  declare signLanguageOpen: boolean;
+  declare signLanguageSrc: string;
 
   private abortController: AbortController | null = null;
   private requestId = 0;
@@ -360,6 +371,8 @@ export class SavannaPlayer extends LitElement {
   private captionManager: CaptionManager | null = null;
   private captionPreferencesLoaded = false;
   private captionChoiceStored = false;
+  private mediaSync: MediaSync | null = null;
+  private signLanguageDetach: (() => void) | null = null;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const action = resolveShortcut(event, this);
@@ -410,10 +423,16 @@ export class SavannaPlayer extends LitElement {
     this.transcriptLanguage = 'en';
     this.transcriptSegments = [];
     this.captionSettings = { ...DEFAULT_CAPTION_SETTINGS };
+    this.signLanguageOpen = false;
+    this.signLanguageSrc = '';
   }
 
   get videoElement(): HTMLVideoElement | null {
     return this.renderRoot?.querySelector('video') ?? null;
+  }
+
+  get signLanguageWindow(): SignLanguageWindow | null {
+    return this.renderRoot?.querySelector<SignLanguageWindow>(SIGN_LANGUAGE_TAG) ?? null;
   }
 
   get controller(): MediaController | null {
@@ -435,6 +454,10 @@ export class SavannaPlayer extends LitElement {
   override disconnectedCallback(): void {
     this.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
+    this.signLanguageDetach?.();
+    this.signLanguageDetach = null;
+    this.mediaSync?.dispose();
+    this.mediaSync = null;
     this.abortController?.abort();
     this.abortController = null;
     this.transcriptRequestId += 1;
@@ -450,6 +473,9 @@ export class SavannaPlayer extends LitElement {
       this.transcriptLanguage = transcriptLanguageOf(this.captionLanguage);
     }
     this.restoreCaptionSettings(changed);
+    if (changed.has('lesson')) {
+      this.signLanguageSrc = this.lesson?.media?.signLanguage ?? this.signLanguageSrc;
+    }
     if (changed.has('lessonId') || changed.has('apiBase')) this.beginLoad();
     const transcriptInputChanged =
       changed.has('status') || changed.has('captionLanguage') || changed.has('transcriptLanguage');
@@ -459,6 +485,9 @@ export class SavannaPlayer extends LitElement {
   override updated(changed: PropertyValues<this>): void {
     this.syncAnnouncement();
     this.syncCaptions(changed);
+    if (changed.has('signLanguageOpen') || changed.has('lesson')) {
+      void this.syncSignLanguage();
+    }
   }
 
   togglePlay = async (): Promise<void> => {
@@ -507,6 +536,34 @@ export class SavannaPlayer extends LitElement {
     await this.controller?.toggleFullscreen(container);
     this.isFullscreen = Boolean(document.fullscreenElement);
   };
+
+  toggleSignLanguage = (): void => {
+    this.signLanguageOpen = !this.signLanguageOpen;
+    void this.syncSignLanguage();
+  };
+
+  private handleSignLanguageClose = (): void => {
+    this.signLanguageOpen = false;
+    void this.syncSignLanguage();
+  };
+
+  private async syncSignLanguage(): Promise<void> {
+    if (!this.videoElement) return;
+    const signWindow = this.signLanguageWindow;
+    if (signWindow) {
+      await signWindow.updateComplete;
+    }
+    const signVideo = signWindow?.videoElement;
+
+    if (this.signLanguageOpen && signVideo) {
+      this.mediaSync ??= new MediaSync(this.videoElement);
+      this.signLanguageDetach?.();
+      this.signLanguageDetach = this.mediaSync.attach(signVideo);
+    } else if (!this.signLanguageOpen && this.signLanguageDetach) {
+      this.signLanguageDetach();
+      this.signLanguageDetach = null;
+    }
+  }
 
   private get supportsOffline(): boolean {
     return (
@@ -611,7 +668,6 @@ export class SavannaPlayer extends LitElement {
       </div>
     `;
   }
-
   private handleVideoPlay = (): void => {
     this.isPaused = false;
   };
@@ -648,6 +704,7 @@ export class SavannaPlayer extends LitElement {
   override render() {
     const failed = this.status === 'error';
     const videoSource = this.lesson?.media?.video ?? this.videoSrc;
+    const signLanguageSource = this.lesson?.media?.signLanguage ?? this.signLanguageSrc;
     return html`
       <section
         class="player-container"
@@ -679,6 +736,11 @@ export class SavannaPlayer extends LitElement {
             @ratechange=${this.handleVideoRateChange}
             @ended=${this.handleVideoPause}
           ></video>
+          <savanna-sign-language
+            .src=${signLanguageSource}
+            ?open=${this.signLanguageOpen}
+            @savanna-sign-language-close=${this.handleSignLanguageClose}
+          ></savanna-sign-language>
         </div>
         <div class="controls-toolbar" role="toolbar" aria-label="Media player controls">
           <button
@@ -757,6 +819,21 @@ export class SavannaPlayer extends LitElement {
               >${this.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</span
             >
           </button>
+
+          ${
+            signLanguageSource
+              ? html`<button
+                  type="button"
+                  class="control-btn sign-language-btn"
+                  @click=${this.toggleSignLanguage}
+                  aria-label="Ethiopian Sign Language"
+                  aria-pressed=${this.signLanguageOpen ? 'true' : 'false'}
+                >
+                  <span aria-hidden="true">🤟</span>
+                  <span class="visually-hidden">Ethiopian Sign Language</span>
+                </button>`
+              : nothing
+          }
         </div>
         ${
           this.status === 'ready'
@@ -1000,6 +1077,7 @@ export class SavannaPlayer extends LitElement {
     const statusChanged = this.status !== status;
     this.lesson = lesson;
     this.videoSrc = lesson?.media?.video ?? '';
+    this.signLanguageSrc = lesson?.media?.signLanguage ?? '';
     this.statusMessage = message;
     this.status = status;
     if (statusChanged) {

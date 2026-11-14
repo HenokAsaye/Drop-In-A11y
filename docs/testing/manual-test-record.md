@@ -91,6 +91,26 @@ Lesson:          Local WebVTT fixture, plus the demo page (the lesson API was no
 | Captions EN / AM | Open a page that uses the player's `::cue` font stack and a WebVTT cue `አማርኛ እንኳን ደህና መጡ`. Switch the demo language control to Amharic. | Ethiopic letters, not empty boxes. English and Amharic can be chosen. | Pass | The cue and a 64px sample both drew Ethiopic letters. The demo language list is English and Amharic (አማርኛ). The choice is saved and restored on reload (Playwright, desktop and mobile). The seeded networking-101 file was not played. |
 | Caption customization | Change caption size and background in the demo, reload, and check the high-contrast control. | Size, colors, and high contrast are available and the size and background survive reload. | Pass | Playwright set size to 150% and background to `#00aa00`; both were still set after reload. High contrast is a checkbox labeled "High contrast" and forces black text on yellow in the cue rule. A painted cue on the seeded lesson was not checked. |
 
+## Session 2026-11-14 — Ethiopian Sign Language interpreter window (Spec 4.3)
+
+```
+Date:            2026-11-14
+Tester:          Member 1
+Build / commit:  dev
+AT + version:    Keyboard navigation, Pointer interaction, Screen reader checks
+Browser + OS:    Chromium / macOS
+Lesson:          networking-101
+```
+
+| Check | Steps | Expected | Result (Pass/Fail) | Notes / issue link |
+| ----- | ----- | -------- | ------------------ | ------------------ |
+| Accessible show/hide toggle | Tab to the sign language toggle in the toolbar, press Space/Enter. | Button announces "Ethiopian Sign Language", communicates pressed/unpressed state via `aria-pressed`, and displays/hides the interpreter window. | Pass | Toolbar button uses `aria-label="Ethiopian Sign Language"` and toggles `aria-pressed="true|false"`. Footage is prerecorded and reviewed. |
+| Move and resize via keyboard | Focus drag handle in title bar, use Arrow keys to move; use Shift+Arrow keys or focus resize handle with Arrow keys to resize. | Window shifts position or changes dimensions smoothly. | Pass | Drag handle responds to Arrow keys for moving and Shift+Arrows for resizing; dedicated resize handle supports Arrow keys. |
+| Move and resize via pointer | Click and drag title bar to move; click and drag bottom-right corner resize handle to resize. | Window follows pointer smoothly. | Pass | Drag handle tracks pointer coords; resize handle tracks dx/dy with minimum dimension constraints. |
+| Keep window inside player on small screens | Resize container or move window past player boundaries. | Window clamps to container bounds and never gets lost or pushed off screen. | Pass | Clamping enforces `0 <= x <= containerWidth - width` and `0 <= y <= containerHeight - height`. |
+| No keyboard trap | Tab into sign language window controls and press Escape or click Close button. | Focus can navigate within and leave window without trap; Escape dismisses window. | Pass | Escape key and Close button dismiss the window cleanly; focus is not trapped. |
+| Secondary media sync | Play, pause, seek, change speed on main video. Introduce drift. | Interpreter video mirrors play/pause, seeks to matching timestamp, updates playback rate, and re-syncs when drift exceeds 0.3s tolerance. | Pass | `MediaSync` synchronizes play, pause, seeked, ratechange, and checks drift on timeupdate. |
+
 ## Session 2026-11-14 — Offline downloads (Spec 4.6)
 
 Automated disconnect test only (Playwright `context.setOffline(true)`, Chromium and Pixel 7
