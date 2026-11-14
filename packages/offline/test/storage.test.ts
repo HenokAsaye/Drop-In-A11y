@@ -53,6 +53,5 @@ describe('offline storage (spec 4.6)', () => {
 });
 
 describe('service worker (spec 4.6)', () => {
-  it.todo('serves downloaded lesson resources cache-first');
   it.todo('the offline lesson page works after disconnecting (Playwright e2e)');
 });
