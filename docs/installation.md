@@ -29,9 +29,10 @@ Or run the whole backend in containers: `docker compose up --build`.
 cd apps/api
 uv run alembic revision --autogenerate -m "describe change"
 uv run alembic upgrade head
+uv run python -m scripts.seed
 ```
 
-No migrations exist yet; the first one is created when the data model is implemented.
+`alembic upgrade head` creates the tables. The seed inserts the `networking-101` demonstration lesson and is safe to run again. It does not create media files.
 
 ## Environment variables (API)
 
