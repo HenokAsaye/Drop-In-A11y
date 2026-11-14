@@ -15,6 +15,7 @@ from app.schemas.lesson import (
     OfflineResource,
     TranscriptOut,
     TranscriptRef,
+    TranscriptSegment,
 )
 from app.services.urls import UrlBuilder
 
@@ -28,7 +29,14 @@ class LessonService:
         return self._to_lesson(await self._require(lesson_id))
 
     async def get_transcript(self, lesson_id: str, language: str) -> TranscriptOut:
-        raise NotImplementedError("LessonService.get_transcript")
+        transcript = await self._lessons.get_transcript(lesson_id, language)
+        if transcript is None:
+            await self._require(lesson_id)
+            raise NotFoundError("Transcript", f"{lesson_id}:{language}")
+        return TranscriptOut(
+            language=transcript.language,
+            segments=[TranscriptSegment.model_validate(segment) for segment in transcript.segments],
+        )
 
     async def get_captions(self, lesson_id: str) -> list[CaptionTrackOut]:
         return self._to_lesson(await self._require(lesson_id)).captions
