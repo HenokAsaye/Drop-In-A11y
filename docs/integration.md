@@ -38,6 +38,7 @@ Defined in `packages/contracts/src/element.ts`.
 | `lesson-id`        | Yes      | Lesson identifier, e.g. `networking-101`        |
 | `api-base`         | Yes      | Base URL of the BridgePlayer API                |
 | `caption-language` | No       | Initial caption language (`en`, `am`)           |
+| `sw-url`           | No       | URL of `savanna-sw.js` on your own origin (default `/savanna-sw.js`) |
 | `lang`             | No       | Interface language for player labels            |
 
 | Event                   | Detail                    |
@@ -50,5 +51,10 @@ Defined in `packages/contracts/src/element.ts`.
 - Add the host origin to the API's `SAVANNA_CORS_ORIGINS`.
 - Media storage must allow CORS and HTTP range requests.
 - Use HTTPS in production.
-- **Offline mode:** serve `savanna-sw.js` from your own origin (service workers are same-origin
-  only). Final approach is an open question in `docs/architecture.md`.
+- **Offline mode:** serve `savanna-sw.js` from your own origin. Service workers are same-origin
+  only, so a worker loaded from the plugin's CDN cannot control your pages. Copy the file from the
+  plugin release into your site's public folder (for example `/savanna-sw.js`). If it lives
+  elsewhere, point the player at it with `sw-url`. The player registers the worker when a learner
+  first downloads a lesson. If the file is missing, downloads still save, the player tells the
+  learner that offline playback is not set up, and the lesson will not open offline. The worker
+  only answers requests for downloaded lesson files; every other request goes to the network.

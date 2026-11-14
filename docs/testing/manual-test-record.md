@@ -111,9 +111,23 @@ Lesson:          networking-101
 | No keyboard trap | Tab into sign language window controls and press Escape or click Close button. | Focus can navigate within and leave window without trap; Escape dismisses window. | Pass | Escape key and Close button dismiss the window cleanly; focus is not trapped. |
 | Secondary media sync | Play, pause, seek, change speed on main video. Introduce drift. | Interpreter video mirrors play/pause, seeks to matching timestamp, updates playback rate, and re-syncs when drift exceeds 0.3s tolerance. | Pass | `MediaSync` synchronizes play, pause, seeked, ratechange, and checks drift on timeupdate. |
 
+## Session 2026-11-14 — Offline downloads (Spec 4.6)
+
+Automated disconnect test only (Playwright `context.setOffline(true)`, Chromium and Pixel 7
+emulation). No device or screen-reader session yet.
+
+| Check | Steps | Expected | Result | Notes |
+| ----- | ----- | -------- | ------ | ----- |
+| Downloaded file served offline | Download audio, go offline, fetch the file | Saved copy is returned | Pass | `e2e/accessibility.spec.ts`; the fake network source is removed before going offline |
+| Undownloaded file fails offline | Go offline, fetch a file that was not downloaded | Request fails | Pass | Control check, so the test cannot pass by accident |
+| Offline in airplane mode on a real phone | Download, enable airplane mode, reopen lesson | Audio/text/HTML work without network | Pending | Needs a device session (Chrome Android) |
+| Download controls with a screen reader | Tab to the group, activate a download | Names, progress and result announced | Pending | Needs NVDA / TalkBack |
+
 ## Known limitations
 
 | Date | Limitation | Impact | Planned fix |
 | ---- | ---------- | ------ | ----------- |
 | 2026-11-14 | The demo end-to-end job does not serve the seeded networking-101 video or WebVTT files | Language, size, and color checks cover the controls and the saved settings. They do not show a cue on that lesson. | Repeat the cue check when the lesson seed is available |
 | 2026-11-14 | The Ethiopic face is requested from Google Fonts | If that request is blocked, captions use an Ethiopic font already on the computer (Noto Sans Ethiopic, Abyssinica SIL, Nyala, or Ebrima). This Linux machine already has Noto Sans Ethiopic, and that is what drew the letters. | None. The font stack is the fallback |
+| 2026-11-14 | The service worker only answers downloaded lesson files. The host page itself is not cached. | Reloading the host page while offline fails unless the host caches its own page. Only lesson files requested by an already-open page are proven to work offline. | Decide whether the worker should also cache the host page shell |
+| 2026-11-14 | Host sites must serve `savanna-sw.js` from their own origin. | Without it, downloads are saved but offline playback is not set up. The player says so. | Documented in `docs/integration.md` |
