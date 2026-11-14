@@ -38,5 +38,17 @@ services:
       - ./assets:/usr/share/nginx/html:ro
       - ./infra/media/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SAVANNA_API_BASE: http://localhost:8000
+    ports:
+      - '4173:80'
+    depends_on:
+      api:
+        condition: service_started
+
 volumes:
   db-data:
