@@ -1,4 +1,10 @@
 import { PLAYER_TAG, type Lesson, type PlayerStatus } from '@savanna/contracts';
+import {
+  DownloadManager,
+  OfflineStorage,
+  type DownloadStatus,
+  type OfflineMode,
+} from '@savanna/offline';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 
 import { Announcer } from '../accessibility/announcer';
@@ -8,6 +14,18 @@ import { MediaController } from '../media/media-controller';
 
 const EMPTY_MESSAGE = 'This lesson has no video.';
 const FAILURE_MESSAGE = 'The lesson could not be loaded.';
+const DOWNLOAD_FAILURE_MESSAGE = 'The download failed. Check your connection and try again.';
+const OFFLINE_MODES: { mode: OfflineMode; label: string }[] = [
+  { mode: 'audio', label: 'Download audio only' },
+  { mode: 'text', label: 'Download text only' },
+  { mode: 'full', label: 'Download everything' },
+];
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} bytes`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -36,6 +54,8 @@ export class SavannaPlayer extends LitElement {
     duration: { state: true },
     playbackRate: { state: true },
     isFullscreen: { state: true },
+    offlineStatus: { state: true },
+    offlineMessage: { state: true },
   };
 
   static override styles = css`
@@ -158,6 +178,31 @@ export class SavannaPlayer extends LitElement {
       font-variant-numeric: tabular-nums;
     }
 
+    .offline {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem;
+      flex-wrap: wrap;
+      background: rgba(15, 23, 42, 0.95);
+      color: #f8fafc;
+    }
+
+    .offline .control-btn {
+      border-color: #94a3b8;
+    }
+
+    .offline [aria-disabled='true'] {
+      opacity: 0.6;
+      cursor: progress;
+    }
+
+    .offline-status {
+      margin: 0;
+      flex-basis: 100%;
+      font-size: 0.875rem;
+    }
+
     .visually-hidden {
       position: absolute;
       width: 1px;
@@ -184,6 +229,11 @@ export class SavannaPlayer extends LitElement {
   declare duration: number;
   declare playbackRate: number;
   declare isFullscreen: boolean;
+  declare offlineStatus: DownloadStatus;
+  declare offlineMessage: string;
+
+  /** Offline download manager; created on first use, or supplied by a host or a test. */
+  offlineManager: DownloadManager | undefined;
 
   private abortController: AbortController | null = null;
   private requestId = 0;
@@ -236,6 +286,8 @@ export class SavannaPlayer extends LitElement {
     this.duration = 0;
     this.playbackRate = 1;
     this.isFullscreen = false;
+    this.offlineStatus = 'not-downloaded';
+    this.offlineMessage = '';
   }
 
   get videoElement(): HTMLVideoElement | null {
@@ -324,6 +376,95 @@ export class SavannaPlayer extends LitElement {
     await this.controller?.toggleFullscreen(container);
     this.isFullscreen = Boolean(document.fullscreenElement);
   };
+
+  private get supportsOffline(): boolean {
+    return (
+      this.offlineManager !== undefined ||
+      (typeof indexedDB !== 'undefined' && typeof caches !== 'undefined')
+    );
+  }
+
+  private get manager(): DownloadManager {
+    this.offlineManager ??= new DownloadManager(new OfflineStorage());
+    return this.offlineManager;
+  }
+
+  private downloadLesson = async (mode: OfflineMode): Promise<void> => {
+    if (this.offlineStatus === 'downloading') return;
+    this.offlineStatus = 'downloading';
+    this.offlineMessage = 'Downloading.';
+    try {
+      const pkg = await new LessonClient(this.apiBase.trim()).getOfflinePackage(
+        this.lessonId.trim(),
+      );
+      await this.manager.download(pkg, mode, (progress) => {
+        if (progress.status === 'downloading') {
+          this.offlineMessage = `Downloading. ${formatBytes(progress.completedBytes)} saved.`;
+        }
+      });
+      const label = OFFLINE_MODES.find((entry) => entry.mode === mode)?.label ?? mode;
+      this.offlineStatus = 'downloaded';
+      this.offlineMessage = `Downloaded for offline use: ${label.replace('Download ', '')}.`;
+    } catch {
+      this.offlineStatus = 'failed';
+      this.offlineMessage = DOWNLOAD_FAILURE_MESSAGE;
+    }
+  };
+
+  private removeDownload = async (): Promise<void> => {
+    await this.manager.remove(this.lessonId.trim());
+    this.offlineStatus = 'not-downloaded';
+    this.offlineMessage = 'Offline copy removed.';
+  };
+
+  private async refreshOfflineStatus(): Promise<void> {
+    if (!this.supportsOffline) return;
+    try {
+      const status = await this.manager.status(this.lessonId.trim());
+      if (status === 'downloaded') {
+        this.offlineStatus = 'downloaded';
+        this.offlineMessage = 'This lesson is available offline.';
+      }
+    } catch {
+      // Offline storage is optional; ignore failures and keep the download buttons.
+    }
+  }
+
+  private renderOfflineControls() {
+    if (this.status !== 'ready' || !this.supportsOffline) return nothing;
+    const busy = this.offlineStatus === 'downloading';
+    return html`
+      <div class="offline" role="group" aria-label="Offline use">
+        ${OFFLINE_MODES.map(
+          ({ mode, label }) => html`
+            <button
+              type="button"
+              class="control-btn offline-btn"
+              data-mode=${mode}
+              aria-disabled=${busy ? 'true' : 'false'}
+              @click=${() => void this.downloadLesson(mode)}
+            >
+              ${label}
+            </button>
+          `,
+        )}
+        ${
+          this.offlineStatus === 'downloaded'
+            ? html`<button
+                type="button"
+                class="control-btn offline-remove"
+                @click=${() => void this.removeDownload()}
+              >
+                Remove download
+              </button>`
+            : nothing
+        }
+        <p id="offline-status" class="offline-status" role="status" aria-live="polite">
+          ${this.offlineMessage}
+        </p>
+      </div>
+    `;
+  }
 
   private handleVideoPlay = (): void => {
     this.isPaused = false;
@@ -469,6 +610,7 @@ export class SavannaPlayer extends LitElement {
             >
           </button>
         </div>
+        ${this.renderOfflineControls()}
       </section>
     `;
   }
@@ -503,6 +645,7 @@ export class SavannaPlayer extends LitElement {
       if (!this.isCurrent(requestId, controller)) return;
       const outcome = describeLesson(lesson);
       this.setOutcome(outcome.status, outcome.message, lesson);
+      if (outcome.status === 'ready') void this.refreshOfflineStatus();
     } catch (error: unknown) {
       if (!this.isCurrent(requestId, controller) || isAbortError(error)) return;
       const message =
