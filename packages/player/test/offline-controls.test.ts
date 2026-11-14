@@ -65,9 +65,19 @@ function button(player: SavannaPlayer, text: string): HTMLButtonElement {
 const offlineStatus = (player: SavannaPlayer): string =>
   player.shadowRoot?.querySelector('#offline-status')?.textContent?.trim() ?? '';
 
+/** happy-dom has no service worker support, so tests install a stand-in. */
+function stubServiceWorker(register = vi.fn(async () => ({}))) {
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: { register, ready: Promise.resolve({}) },
+  });
+  return register;
+}
+
 afterEach(() => {
   document.body.replaceChildren();
   vi.unstubAllGlobals();
+  Reflect.deleteProperty(navigator, 'serviceWorker');
 });
 
 describe('<savanna-player> offline controls (spec 4.6)', () => {
@@ -91,6 +101,7 @@ describe('<savanna-player> offline controls (spec 4.6)', () => {
 
   it('downloads the package for the chosen mode and announces the result', async () => {
     stubApi();
+    stubServiceWorker();
     const manager = fakeManager();
     const player = await mount(manager);
     button(player, 'Download audio only').click();
@@ -98,6 +109,40 @@ describe('<savanna-player> offline controls (spec 4.6)', () => {
     expect(manager.download).toHaveBeenCalledWith(offlinePackage, 'audio', expect.any(Function));
     expect(player.shadowRoot?.querySelector('#offline-status')?.getAttribute('role')).toBe(
       'status',
+    );
+  });
+
+  it('registers the service worker from the host origin after a download', async () => {
+    stubApi();
+    const register = stubServiceWorker();
+    const player = await mount(fakeManager());
+    button(player, 'Download everything').click();
+    await vi.waitFor(() => expect(offlineStatus(player)).toContain('Downloaded for offline use'));
+    expect(register).toHaveBeenCalledWith('/savanna-sw.js');
+  });
+
+  it('uses the sw-url attribute when the host serves the worker elsewhere', async () => {
+    stubApi();
+    const register = stubServiceWorker();
+    const player = document.createElement('savanna-player');
+    player.setAttribute('sw-url', '/demo/savanna-sw.js');
+    player.offlineManager = fakeManager() as unknown as DownloadManager;
+    player.setAttribute('lesson-id', 'networking-101');
+    player.setAttribute('api-base', 'https://api.example');
+    document.body.append(player);
+    await vi.waitFor(() => expect(player.status).toBe('ready'));
+    await player.updateComplete;
+    button(player, 'Download audio only').click();
+    await vi.waitFor(() => expect(register).toHaveBeenCalledWith('/demo/savanna-sw.js'));
+  });
+
+  it('warns the learner when offline playback is not set up on the site', async () => {
+    stubApi();
+    stubServiceWorker(vi.fn(async () => Promise.reject(new Error('blocked'))));
+    const player = await mount(fakeManager());
+    button(player, 'Download audio only').click();
+    await vi.waitFor(() =>
+      expect(offlineStatus(player)).toContain('has not set up offline playback'),
     );
   });
 

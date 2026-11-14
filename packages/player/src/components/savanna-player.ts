@@ -15,6 +15,8 @@ import { MediaController } from '../media/media-controller';
 const EMPTY_MESSAGE = 'This lesson has no video.';
 const FAILURE_MESSAGE = 'The lesson could not be loaded.';
 const DOWNLOAD_FAILURE_MESSAGE = 'The download failed. Check your connection and try again.';
+const NO_WORKER_MESSAGE =
+  'Downloaded, but this site has not set up offline playback, so the lesson may not open offline.';
 const OFFLINE_MODES: { mode: OfflineMode; label: string }[] = [
   { mode: 'audio', label: 'Download audio only' },
   { mode: 'text', label: 'Download text only' },
@@ -44,6 +46,7 @@ export class SavannaPlayer extends LitElement {
     lessonId: { type: String, attribute: 'lesson-id', reflect: true },
     apiBase: { type: String, attribute: 'api-base', reflect: true },
     captionLanguage: { type: String, attribute: 'caption-language' },
+    swUrl: { type: String, attribute: 'sw-url' },
     status: { state: true },
     lesson: { state: true },
     videoSrc: { state: true },
@@ -219,6 +222,7 @@ export class SavannaPlayer extends LitElement {
   declare lessonId: string;
   declare apiBase: string;
   declare captionLanguage: string;
+  declare swUrl: string;
   declare status: PlayerStatus;
   declare lesson: Lesson | null;
   declare videoSrc: string;
@@ -276,6 +280,7 @@ export class SavannaPlayer extends LitElement {
     this.lessonId = '';
     this.apiBase = '';
     this.captionLanguage = 'en';
+    this.swUrl = '/savanna-sw.js';
     this.status = 'idle';
     this.lesson = null;
     this.videoSrc = '';
@@ -403,13 +408,28 @@ export class SavannaPlayer extends LitElement {
         }
       });
       const label = OFFLINE_MODES.find((entry) => entry.mode === mode)?.label ?? mode;
+      const playbackReady = await this.registerWorker();
       this.offlineStatus = 'downloaded';
-      this.offlineMessage = `Downloaded for offline use: ${label.replace('Download ', '')}.`;
+      this.offlineMessage = playbackReady
+        ? `Downloaded for offline use: ${label.replace('Download ', '')}.`
+        : NO_WORKER_MESSAGE;
     } catch {
       this.offlineStatus = 'failed';
       this.offlineMessage = DOWNLOAD_FAILURE_MESSAGE;
     }
   };
+
+  /** The service worker serves saved files while offline. It must live on the host's origin. */
+  private async registerWorker(): Promise<boolean> {
+    if (!('serviceWorker' in navigator)) return false;
+    try {
+      await navigator.serviceWorker.register(this.swUrl);
+      await navigator.serviceWorker.ready;
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   private removeDownload = async (): Promise<void> => {
     await this.manager.remove(this.lessonId.trim());

@@ -75,8 +75,21 @@ Lesson:          networking-101
 | 200% zoom | Zoom to 200% | No loss of content or function, no horizontal scroll | Pass | Controls wrap with `flex-wrap: wrap`, no fixed container widths |
 | Sound off | Mute device | All information available visually | Pass | Controls convey state via icons and text, not color alone | |
 
+## Session 2026-11-14 — Offline downloads (Spec 4.6)
+
+Automated disconnect test only (Playwright `context.setOffline(true)`, Chromium and Pixel 7
+emulation). No device or screen-reader session yet.
+
+| Check | Steps | Expected | Result | Notes |
+| ----- | ----- | -------- | ------ | ----- |
+| Downloaded file served offline | Download audio, go offline, fetch the file | Saved copy is returned | Pass | `e2e/accessibility.spec.ts`; the fake network source is removed before going offline |
+| Undownloaded file fails offline | Go offline, fetch a file that was not downloaded | Request fails | Pass | Control check, so the test cannot pass by accident |
+| Offline in airplane mode on a real phone | Download, enable airplane mode, reopen lesson | Audio/text/HTML work without network | Pending | Needs a device session (Chrome Android) |
+| Download controls with a screen reader | Tab to the group, activate a download | Names, progress and result announced | Pending | Needs NVDA / TalkBack |
+
 ## Known limitations
 
 | Date | Limitation | Impact | Planned fix |
 | ---- | ---------- | ------ | ----------- |
-|      |            |        |             |
+| 2026-11-14 | The service worker only answers downloaded lesson files. The host page itself is not cached. | Reloading the host page while offline fails unless the host caches its own page. Only lesson files requested by an already-open page are proven to work offline. | Decide whether the worker should also cache the host page shell |
+| 2026-11-14 | Host sites must serve `savanna-sw.js` from their own origin. | Without it, downloads are saved but offline playback is not set up. The player says so. | Documented in `docs/integration.md` |

@@ -56,11 +56,15 @@ The spec requires agreeing on the custom-element contract and lesson schema befo
   without touching the host integration.
 - **Async database access** (SQLAlchemy asyncio + asyncpg) with Alembic migrations.
 
+## Decisions
+
+- **Service worker origin (issue #16).** A service worker can only control pages on its own
+  origin, so a CDN-hosted `savanna-sw.js` cannot work for host sites. Decision: host sites serve
+  `savanna-sw.js` from their own origin (see `docs/integration.md`). The player registers it on
+  the first download, and `sw-url` overrides the default `/savanna-sw.js`. Rejected: a
+  BridgePlayer-hosted offline page, which needs a second hosted app and breaks the drop-in model.
+
 ## Open questions
 
-- **Service worker origin.** A service worker can only control pages on its own origin, so a
-  CDN-hosted `savanna-sw.js` cannot be registered by host sites directly. Options: host sites
-  serve `savanna-sw.js` themselves (documented in integration), or offline mode opens a
-  BridgePlayer-hosted offline page. Decide before Phase 3.
 - **Certificate verification format.** Plain verification page vs. W3C Verifiable Credentials.
 - **Media hosting** for the demo (GitHub Pages size limits vs. object storage bucket).
