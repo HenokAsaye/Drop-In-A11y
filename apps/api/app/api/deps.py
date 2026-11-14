@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.db.session import get_session
 from app.repositories.careers import CareerRepository
 from app.repositories.certificates import CertificateRepository
@@ -13,7 +13,15 @@ from app.services.certificates import CertificateService
 from app.services.lessons import LessonService
 from app.services.urls import UrlBuilder
 
-SettingsDep = Annotated[Settings, Depends(get_settings)]
+
+def get_app_settings(request: Request) -> Settings:
+    settings = getattr(request.app.state, "settings", None)
+    if not isinstance(settings, Settings):
+        raise RuntimeError("application settings were not configured")
+    return settings
+
+
+SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
