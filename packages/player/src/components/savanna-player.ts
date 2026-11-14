@@ -2,6 +2,7 @@ import { PLAYER_TAG, type Lesson, type PlayerStatus } from '@savanna/contracts';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 
 import { Announcer } from '../accessibility/announcer';
+import { resolveShortcut } from '../accessibility/keyboard-shortcuts';
 import { LessonClient } from '../api/lesson-client';
 
 const EMPTY_MESSAGE = 'This lesson has no video.';
@@ -52,6 +53,9 @@ export class SavannaPlayer extends LitElement {
   private statusAnnouncer: Announcer | null = null;
   private errorAnnouncer: Announcer | null = null;
   private connectedOnce = false;
+  private readonly onKeyDown = (event: KeyboardEvent): void => {
+    resolveShortcut(event, this);
+  };
 
   constructor() {
     super();
@@ -64,11 +68,13 @@ export class SavannaPlayer extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.addEventListener('keydown', this.onKeyDown);
     if (this.connectedOnce) this.beginLoad();
     this.connectedOnce = true;
   }
 
   override disconnectedCallback(): void {
+    this.removeEventListener('keydown', this.onKeyDown);
     this.abortController?.abort();
     this.abortController = null;
     super.disconnectedCallback();

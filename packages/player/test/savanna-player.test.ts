@@ -277,6 +277,31 @@ describe('<savanna-player> lesson loading (spec 2.3, 4.1)', () => {
   });
 });
 
+describe('<savanna-player> keyboard shortcuts (spec 5.1)', () => {
+  it('claims shortcuts while focus is inside the player and leaves typing controls alone', async () => {
+    const player = await mount({});
+    const hostEvent = new KeyboardEvent('keydown', {
+      key: 'ArrowUp',
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    });
+    player.dispatchEvent(hostEvent);
+    expect(hostEvent.defaultPrevented).toBe(true);
+
+    const search = document.createElement('input');
+    player.shadowRoot?.append(search);
+    const typing = new KeyboardEvent('keydown', {
+      key: 'ArrowUp',
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    });
+    search.dispatchEvent(typing);
+    expect(typing.defaultPrevented).toBe(false);
+  });
+});
+
 describe('<savanna-player> video controls (spec 4.1)', () => {
   it.todo('play/pause, seek, volume, mute, speed and fullscreen use native buttons and inputs');
   it.todo('every control has an accessible name');
