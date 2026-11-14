@@ -7,7 +7,7 @@ import {
   type Transcript,
 } from '@savanna/contracts';
 
-const FAILURE_MESSAGE = 'The lesson could not be loaded.';
+import { LESSON_LOAD_FAILURE_MESSAGE } from '../config';
 
 /** A lesson request failed with a message safe to show to a learner. */
 export class LessonRequestError extends Error {
@@ -54,7 +54,7 @@ export class LessonClient {
     try {
       base = new URL(this.apiBase.trim());
     } catch (cause) {
-      throw new LessonRequestError(FAILURE_MESSAGE, { cause });
+      throw new LessonRequestError(LESSON_LOAD_FAILURE_MESSAGE, { cause });
     }
     const prefix = base.href.endsWith('/') ? base.href : `${base.href}/`;
     return new URL(path.replace(/^\/+/, ''), prefix).href;
@@ -70,7 +70,7 @@ export class LessonClient {
       });
     } catch (cause) {
       if (isAbortError(cause)) throw cause;
-      throw new LessonRequestError(FAILURE_MESSAGE, { cause });
+      throw new LessonRequestError(LESSON_LOAD_FAILURE_MESSAGE, { cause });
     }
 
     if (!response.ok) {
@@ -81,7 +81,7 @@ export class LessonClient {
       return (await response.json()) as T;
     } catch (cause) {
       if (isAbortError(cause)) throw cause;
-      throw new LessonRequestError(FAILURE_MESSAGE, { cause });
+      throw new LessonRequestError(LESSON_LOAD_FAILURE_MESSAGE, { cause });
     }
   }
 }
@@ -95,7 +95,7 @@ function isNamed(error: unknown, name: string): boolean {
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
-  const fallback = `${FAILURE_MESSAGE} (${response.status}).`;
+  const fallback = `${LESSON_LOAD_FAILURE_MESSAGE} (${response.status}).`;
   try {
     const body: unknown = await response.json();
     if (!isRecord(body) || typeof body.detail !== 'string') return fallback;

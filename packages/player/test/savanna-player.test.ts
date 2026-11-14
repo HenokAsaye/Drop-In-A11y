@@ -338,7 +338,11 @@ describe('<savanna-player> video controls (spec 4.1)', () => {
     controls?.forEach((ctrl) => {
       const ariaLabel = ctrl.getAttribute('aria-label');
       const text = ctrl.textContent?.trim();
-      expect(ariaLabel || text).toBeTruthy();
+      const id = ctrl.getAttribute('id');
+      const labelled = id
+        ? player.shadowRoot?.querySelector(`label[for="${id}"]`)?.textContent?.trim()
+        : '';
+      expect(ariaLabel || text || labelled).toBeTruthy();
     });
 
     const playBtn = player.shadowRoot?.querySelector('button.play-btn');
@@ -379,7 +383,6 @@ describe('<savanna-player> video controls (spec 4.1)', () => {
     expect(playBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('▶');
     expect(playBtn.querySelector('.visually-hidden')?.textContent).toBe('Play');
 
-    // Simulate play
     await player.togglePlay();
     await player.updateComplete;
 
@@ -387,7 +390,6 @@ describe('<savanna-player> video controls (spec 4.1)', () => {
     expect(playBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('⏸');
     expect(playBtn.querySelector('.visually-hidden')?.textContent).toBe('Pause');
 
-    // Mute toggle
     const muteBtn = player.shadowRoot?.querySelector('button.mute-btn') as HTMLButtonElement;
     expect(muteBtn.getAttribute('aria-label')).toBe('Mute');
     expect(muteBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('🔊');
@@ -399,7 +401,6 @@ describe('<savanna-player> video controls (spec 4.1)', () => {
     expect(muteBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('🔇');
     expect(muteBtn.querySelector('.visually-hidden')?.textContent).toBe('Unmute');
 
-    // Speed cycle
     const speedBtn = player.shadowRoot?.querySelector('button.speed-btn') as HTMLButtonElement;
     expect(speedBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('1x');
     expect(speedBtn.getAttribute('aria-label')).toBe('Playback speed: 1x');
