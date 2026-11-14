@@ -2,31 +2,82 @@
 export class MediaController {
   constructor(protected readonly video: HTMLVideoElement) {}
 
-  togglePlay(): Promise<void> {
-    throw new Error('Not implemented: MediaController.togglePlay');
+  async togglePlay(): Promise<void> {
+    if (this.video.paused || this.video.ended) {
+      const res = this.video.play();
+      if (res && typeof res.then === 'function') {
+        await res;
+      }
+    } else {
+      this.video.pause();
+    }
   }
 
-  seekBy(_seconds: number): void {
-    throw new Error('Not implemented: MediaController.seekBy');
+  seekBy(seconds: number): void {
+    const duration = Number.isFinite(this.video.duration) ? this.video.duration : Infinity;
+    const current = Number.isFinite(this.video.currentTime) ? this.video.currentTime : 0;
+    const target = current + seconds;
+    this.video.currentTime = Math.max(0, Math.min(duration, target));
   }
 
-  seekTo(_seconds: number): void {
-    throw new Error('Not implemented: MediaController.seekTo');
+  seekTo(seconds: number): void {
+    const duration = Number.isFinite(this.video.duration) ? this.video.duration : Infinity;
+    this.video.currentTime = Math.max(0, Math.min(duration, Math.max(0, seconds)));
   }
 
-  changeVolume(_delta: number): void {
-    throw new Error('Not implemented: MediaController.changeVolume');
+  changeVolume(delta: number): void {
+    const current = Number.isFinite(this.video.volume) ? this.video.volume : 1;
+    const next = Math.max(0, Math.min(1, current + delta));
+    this.video.volume = next;
+    if (next > 0 && this.video.muted) {
+      this.video.muted = false;
+    }
   }
 
   toggleMute(): void {
-    throw new Error('Not implemented: MediaController.toggleMute');
+    this.video.muted = !this.video.muted;
   }
 
-  setPlaybackRate(_rate: number): void {
-    throw new Error('Not implemented: MediaController.setPlaybackRate');
+  setPlaybackRate(rate: number): void {
+    if (rate > 0) {
+      this.video.playbackRate = rate;
+    }
   }
 
-  toggleFullscreen(_container: HTMLElement): Promise<void> {
-    throw new Error('Not implemented: MediaController.toggleFullscreen');
+  async toggleFullscreen(container: HTMLElement): Promise<void> {
+    const doc = container.ownerDocument ?? document;
+    if (doc.fullscreenElement) {
+      if (typeof doc.exitFullscreen === 'function') {
+        await doc.exitFullscreen();
+      }
+    } else {
+      if (typeof container.requestFullscreen === 'function') {
+        await container.requestFullscreen();
+      }
+    }
+  }
+
+  get isPaused(): boolean {
+    return this.video.paused;
+  }
+
+  get isMuted(): boolean {
+    return this.video.muted;
+  }
+
+  get volume(): number {
+    return this.video.volume;
+  }
+
+  get currentTime(): number {
+    return this.video.currentTime;
+  }
+
+  get duration(): number {
+    return this.video.duration;
+  }
+
+  get playbackRate(): number {
+    return this.video.playbackRate;
   }
 }
