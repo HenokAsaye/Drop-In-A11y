@@ -4,6 +4,12 @@ import {
   type PlayerStatus,
   type TranscriptSegment,
 } from '@savanna/contracts';
+import {
+  DownloadManager,
+  OfflineStorage,
+  type DownloadStatus,
+  type OfflineMode,
+} from '@savanna/offline';
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit';
 
 import { Announcer } from '../accessibility/announcer';
@@ -29,12 +35,30 @@ import {
   VOLUME_STEP,
   type CaptionSettings,
 } from '../config';
+import { AudioDescriptionTrack } from '../audio-description/audio-description-track';
 import { MediaController } from '../media/media-controller';
+import { MediaSync } from '../media/media-sync';
+import { SIGN_LANGUAGE_TAG, type SignLanguageWindow } from '../sign-language/sign-language-window';
 import '../transcript/transcript-panel';
 import type {
   TranscriptLanguageDetail,
   TranscriptSeekDetail,
 } from '../transcript/transcript-panel';
+
+const DOWNLOAD_FAILURE_MESSAGE = 'The download failed. Check your connection and try again.';
+const NO_WORKER_MESSAGE =
+  'Downloaded, but this site has not set up offline playback, so the lesson may not open offline.';
+const OFFLINE_MODES: { mode: OfflineMode; label: string }[] = [
+  { mode: 'audio', label: 'Download audio only' },
+  { mode: 'text', label: 'Download text only' },
+  { mode: 'full', label: 'Download everything' },
+];
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} bytes`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -53,6 +77,7 @@ export class SavannaPlayer extends LitElement {
     lessonId: { type: String, attribute: 'lesson-id', reflect: true },
     apiBase: { type: String, attribute: 'api-base', reflect: true },
     captionLanguage: { type: String, attribute: 'caption-language' },
+    swUrl: { type: String, attribute: 'sw-url' },
     status: { state: true },
     lesson: { state: true },
     videoSrc: { state: true },
@@ -63,9 +88,14 @@ export class SavannaPlayer extends LitElement {
     duration: { state: true },
     playbackRate: { state: true },
     isFullscreen: { state: true },
+    offlineStatus: { state: true },
+    offlineMessage: { state: true },
     transcriptLanguage: { state: true },
     transcriptSegments: { state: true },
     captionSettings: { state: true },
+    signLanguageOpen: { state: true },
+    signLanguageSrc: { state: true },
+    audioDescriptionEnabled: { state: true },
   };
 
   static override styles = css`
@@ -152,6 +182,11 @@ export class SavannaPlayer extends LitElement {
       background: rgba(255, 255, 255, 0.1);
     }
 
+    button[aria-pressed='true'] {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+    }
+
     button:focus-visible,
     input:focus-visible,
     select:focus-visible {
@@ -187,6 +222,31 @@ export class SavannaPlayer extends LitElement {
       font-size: 0.875rem;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
+    }
+
+    .offline {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem;
+      flex-wrap: wrap;
+      background: rgba(15, 23, 42, 0.95);
+      color: #f8fafc;
+    }
+
+    .offline .control-btn {
+      border-color: #94a3b8;
+    }
+
+    .offline [aria-disabled='true'] {
+      opacity: 0.6;
+      cursor: progress;
+    }
+
+    .offline-status {
+      margin: 0;
+      flex-basis: 100%;
+      font-size: 0.875rem;
     }
 
     .visually-hidden {
@@ -280,6 +340,7 @@ export class SavannaPlayer extends LitElement {
   declare lessonId: string;
   declare apiBase: string;
   declare captionLanguage: string;
+  declare swUrl: string;
   declare status: PlayerStatus;
   declare lesson: Lesson | null;
   declare videoSrc: string;
@@ -290,9 +351,17 @@ export class SavannaPlayer extends LitElement {
   declare duration: number;
   declare playbackRate: number;
   declare isFullscreen: boolean;
+  declare offlineStatus: DownloadStatus;
+  declare offlineMessage: string;
+
+  /** Offline download manager; created on first use, or supplied by a host or a test. */
+  offlineManager: DownloadManager | undefined;
   declare transcriptLanguage: 'en' | 'am';
   declare transcriptSegments: TranscriptSegment[];
   declare captionSettings: CaptionSettings;
+  declare signLanguageOpen: boolean;
+  declare signLanguageSrc: string;
+  declare audioDescriptionEnabled: boolean;
 
   private abortController: AbortController | null = null;
   private requestId = 0;
@@ -305,6 +374,9 @@ export class SavannaPlayer extends LitElement {
   private captionManager: CaptionManager | null = null;
   private captionPreferencesLoaded = false;
   private captionChoiceStored = false;
+  private mediaSync: MediaSync | null = null;
+  private signLanguageDetach: (() => void) | null = null;
+  private audioDescription: AudioDescriptionTrack | null = null;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const action = resolveShortcut(event, this);
@@ -339,6 +411,7 @@ export class SavannaPlayer extends LitElement {
     this.lessonId = '';
     this.apiBase = '';
     this.captionLanguage = 'en';
+    this.swUrl = '/savanna-sw.js';
     this.status = 'idle';
     this.lesson = null;
     this.videoSrc = '';
@@ -349,13 +422,26 @@ export class SavannaPlayer extends LitElement {
     this.duration = 0;
     this.playbackRate = 1;
     this.isFullscreen = false;
+    this.offlineStatus = 'not-downloaded';
+    this.offlineMessage = '';
     this.transcriptLanguage = 'en';
     this.transcriptSegments = [];
     this.captionSettings = { ...DEFAULT_CAPTION_SETTINGS };
+    this.signLanguageOpen = false;
+    this.signLanguageSrc = '';
+    this.audioDescriptionEnabled = false;
   }
 
   get videoElement(): HTMLVideoElement | null {
     return this.renderRoot?.querySelector('video') ?? null;
+  }
+
+  get signLanguageWindow(): SignLanguageWindow | null {
+    return this.renderRoot?.querySelector<SignLanguageWindow>(SIGN_LANGUAGE_TAG) ?? null;
+  }
+
+  get audioDescriptionElement(): HTMLAudioElement | null {
+    return this.audioDescription?.enabled ? this.audioDescription.element : null;
   }
 
   get controller(): MediaController | null {
@@ -377,6 +463,11 @@ export class SavannaPlayer extends LitElement {
   override disconnectedCallback(): void {
     this.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
+    this.releaseAudioDescription();
+    this.signLanguageDetach?.();
+    this.signLanguageDetach = null;
+    this.mediaSync?.dispose();
+    this.mediaSync = null;
     this.abortController?.abort();
     this.abortController = null;
     this.transcriptRequestId += 1;
@@ -392,6 +483,9 @@ export class SavannaPlayer extends LitElement {
       this.transcriptLanguage = transcriptLanguageOf(this.captionLanguage);
     }
     this.restoreCaptionSettings(changed);
+    if (changed.has('lesson')) {
+      this.signLanguageSrc = this.lesson?.media?.signLanguage ?? this.signLanguageSrc;
+    }
     if (changed.has('lessonId') || changed.has('apiBase')) this.beginLoad();
     const transcriptInputChanged =
       changed.has('status') || changed.has('captionLanguage') || changed.has('transcriptLanguage');
@@ -401,6 +495,12 @@ export class SavannaPlayer extends LitElement {
   override updated(changed: PropertyValues<this>): void {
     this.syncAnnouncement();
     this.syncCaptions(changed);
+    if (changed.has('signLanguageOpen') || changed.has('lesson')) {
+      void this.syncSignLanguage();
+    }
+    if (changed.has('audioDescriptionEnabled') || changed.has('lesson')) {
+      this.syncAudioDescription();
+    }
   }
 
   togglePlay = async (): Promise<void> => {
@@ -450,6 +550,172 @@ export class SavannaPlayer extends LitElement {
     this.isFullscreen = Boolean(document.fullscreenElement);
   };
 
+  toggleSignLanguage = (): void => {
+    this.signLanguageOpen = !this.signLanguageOpen;
+    void this.syncSignLanguage();
+  };
+
+  private handleSignLanguageClose = (): void => {
+    this.signLanguageOpen = false;
+    void this.syncSignLanguage();
+  };
+
+  toggleAudioDescription = (): void => {
+    this.audioDescriptionEnabled = !this.audioDescriptionEnabled;
+  };
+
+  private get audioDescriptionSource(): string {
+    const value = this.lesson?.media?.audioDescription;
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private syncAudioDescription(): void {
+    const source = this.audioDescriptionSource;
+    if (source === '') {
+      this.audioDescriptionEnabled = false;
+      this.releaseAudioDescription();
+      return;
+    }
+    if (!this.audioDescriptionEnabled) {
+      this.releaseAudioDescription();
+      return;
+    }
+    const video = this.videoElement;
+    if (!video) return;
+    if (!this.audioDescription || this.audioDescription.source !== source) {
+      this.releaseAudioDescription();
+      this.audioDescription = new AudioDescriptionTrack(source);
+    }
+    this.mediaSync ??= new MediaSync(video);
+    this.audioDescription.enable(video, this.mediaSync);
+  }
+
+  private releaseAudioDescription(): void {
+    this.audioDescription?.disable();
+    this.audioDescription = null;
+  }
+
+  private async syncSignLanguage(): Promise<void> {
+    if (!this.videoElement) return;
+    const signWindow = this.signLanguageWindow;
+    if (signWindow) {
+      await signWindow.updateComplete;
+    }
+    const signVideo = signWindow?.videoElement;
+
+    if (this.signLanguageOpen && signVideo) {
+      this.mediaSync ??= new MediaSync(this.videoElement);
+      this.signLanguageDetach?.();
+      this.signLanguageDetach = this.mediaSync.attach(signVideo);
+    } else if (!this.signLanguageOpen && this.signLanguageDetach) {
+      this.signLanguageDetach();
+      this.signLanguageDetach = null;
+    }
+  }
+
+  private get supportsOffline(): boolean {
+    return (
+      this.offlineManager !== undefined ||
+      (typeof indexedDB !== 'undefined' && typeof caches !== 'undefined')
+    );
+  }
+
+  private get manager(): DownloadManager {
+    this.offlineManager ??= new DownloadManager(new OfflineStorage());
+    return this.offlineManager;
+  }
+
+  private downloadLesson = async (mode: OfflineMode): Promise<void> => {
+    if (this.offlineStatus === 'downloading') return;
+    this.offlineStatus = 'downloading';
+    this.offlineMessage = 'Downloading.';
+    try {
+      const pkg = await new LessonClient(this.apiBase.trim()).getOfflinePackage(
+        this.lessonId.trim(),
+      );
+      await this.manager.download(pkg, mode, (progress) => {
+        if (progress.status === 'downloading') {
+          this.offlineMessage = `Downloading. ${formatBytes(progress.completedBytes)} saved.`;
+        }
+      });
+      const label = OFFLINE_MODES.find((entry) => entry.mode === mode)?.label ?? mode;
+      const playbackReady = await this.registerWorker();
+      this.offlineStatus = 'downloaded';
+      this.offlineMessage = playbackReady
+        ? `Downloaded for offline use: ${label.replace('Download ', '')}.`
+        : NO_WORKER_MESSAGE;
+    } catch {
+      this.offlineStatus = 'failed';
+      this.offlineMessage = DOWNLOAD_FAILURE_MESSAGE;
+    }
+  };
+
+  /** The service worker serves saved files while offline. It must live on the host's origin. */
+  private async registerWorker(): Promise<boolean> {
+    if (!('serviceWorker' in navigator)) return false;
+    try {
+      await navigator.serviceWorker.register(this.swUrl);
+      await navigator.serviceWorker.ready;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private removeDownload = async (): Promise<void> => {
+    await this.manager.remove(this.lessonId.trim());
+    this.offlineStatus = 'not-downloaded';
+    this.offlineMessage = 'Offline copy removed.';
+  };
+
+  private async refreshOfflineStatus(): Promise<void> {
+    if (!this.supportsOffline) return;
+    try {
+      const status = await this.manager.status(this.lessonId.trim());
+      if (status === 'downloaded') {
+        this.offlineStatus = 'downloaded';
+        this.offlineMessage = 'This lesson is available offline.';
+      }
+    } catch {
+      // Offline storage is optional; ignore failures and keep the download buttons.
+    }
+  }
+
+  private renderOfflineControls() {
+    if (this.status !== 'ready' || !this.supportsOffline) return nothing;
+    const busy = this.offlineStatus === 'downloading';
+    return html`
+      <div class="offline" role="group" aria-label="Offline use">
+        ${OFFLINE_MODES.map(
+          ({ mode, label }) => html`
+            <button
+              type="button"
+              class="control-btn offline-btn"
+              data-mode=${mode}
+              aria-disabled=${busy ? 'true' : 'false'}
+              @click=${() => void this.downloadLesson(mode)}
+            >
+              ${label}
+            </button>
+          `,
+        )}
+        ${
+          this.offlineStatus === 'downloaded'
+            ? html`<button
+                type="button"
+                class="control-btn offline-remove"
+                @click=${() => void this.removeDownload()}
+              >
+                Remove download
+              </button>`
+            : nothing
+        }
+        <p id="offline-status" class="offline-status" role="status" aria-live="polite">
+          ${this.offlineMessage}
+        </p>
+      </div>
+    `;
+  }
   private handleVideoPlay = (): void => {
     this.isPaused = false;
   };
@@ -486,6 +752,8 @@ export class SavannaPlayer extends LitElement {
   override render() {
     const failed = this.status === 'error';
     const videoSource = this.lesson?.media?.video ?? this.videoSrc;
+    const signLanguageSource = this.lesson?.media?.signLanguage ?? this.signLanguageSrc;
+    const audioDescriptionSource = this.audioDescriptionSource;
     return html`
       <section
         class="player-container"
@@ -517,6 +785,11 @@ export class SavannaPlayer extends LitElement {
             @ratechange=${this.handleVideoRateChange}
             @ended=${this.handleVideoPause}
           ></video>
+          <savanna-sign-language
+            .src=${signLanguageSource}
+            ?open=${this.signLanguageOpen}
+            @savanna-sign-language-close=${this.handleSignLanguageClose}
+          ></savanna-sign-language>
         </div>
         <div class="controls-toolbar" role="toolbar" aria-label="Media player controls">
           <button
@@ -595,6 +868,35 @@ export class SavannaPlayer extends LitElement {
               >${this.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</span
             >
           </button>
+
+          ${
+            signLanguageSource
+              ? html`<button
+                  type="button"
+                  class="control-btn sign-language-btn"
+                  @click=${this.toggleSignLanguage}
+                  aria-label="Ethiopian Sign Language"
+                  aria-pressed=${this.signLanguageOpen ? 'true' : 'false'}
+                >
+                  <span aria-hidden="true">🤟</span>
+                  <span class="visually-hidden">Ethiopian Sign Language</span>
+                </button>`
+              : nothing
+          }
+          ${
+            audioDescriptionSource
+              ? html`<button
+                  type="button"
+                  class="control-btn audio-description-btn"
+                  @click=${this.toggleAudioDescription}
+                  aria-label="Audio description"
+                  aria-pressed=${this.audioDescriptionEnabled ? 'true' : 'false'}
+                >
+                  <span aria-hidden="true">AD</span>
+                  <span class="visually-hidden">Audio description</span>
+                </button>`
+              : nothing
+          }
         </div>
         ${
           this.status === 'ready'
@@ -607,7 +909,7 @@ export class SavannaPlayer extends LitElement {
               ></savanna-transcript>`
             : nothing
         }
-        ${this.renderCaptionControls()}
+        ${this.renderCaptionControls()} ${this.renderOfflineControls()}
       </section>
     `;
   }
@@ -816,6 +1118,7 @@ export class SavannaPlayer extends LitElement {
       if (!this.isCurrent(requestId, controller)) return;
       const outcome = describeLesson(lesson);
       this.setOutcome(outcome.status, outcome.message, lesson);
+      if (outcome.status === 'ready') void this.refreshOfflineStatus();
     } catch (error: unknown) {
       if (!this.isCurrent(requestId, controller) || isAbortError(error)) return;
       const message =
@@ -837,6 +1140,7 @@ export class SavannaPlayer extends LitElement {
     const statusChanged = this.status !== status;
     this.lesson = lesson;
     this.videoSrc = lesson?.media?.video ?? '';
+    this.signLanguageSrc = lesson?.media?.signLanguage ?? '';
     this.statusMessage = message;
     this.status = status;
     if (statusChanged) {
