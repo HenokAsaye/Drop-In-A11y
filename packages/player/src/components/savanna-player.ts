@@ -1,4 +1,9 @@
-import { PLAYER_TAG, type Lesson, type PlayerStatus } from '@savanna/contracts';
+import {
+  PLAYER_TAG,
+  type Lesson,
+  type PlayerStatus,
+  type TranscriptSegment,
+} from '@savanna/contracts';
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit';
 
 import { Announcer } from '../accessibility/announcer';
@@ -25,6 +30,11 @@ import {
   type CaptionSettings,
 } from '../config';
 import { MediaController } from '../media/media-controller';
+import '../transcript/transcript-panel';
+import type {
+  TranscriptLanguageDetail,
+  TranscriptSeekDetail,
+} from '../transcript/transcript-panel';
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -53,6 +63,8 @@ export class SavannaPlayer extends LitElement {
     duration: { state: true },
     playbackRate: { state: true },
     isFullscreen: { state: true },
+    transcriptLanguage: { state: true },
+    transcriptSegments: { state: true },
     captionSettings: { state: true },
   };
 
@@ -278,10 +290,13 @@ export class SavannaPlayer extends LitElement {
   declare duration: number;
   declare playbackRate: number;
   declare isFullscreen: boolean;
+  declare transcriptLanguage: 'en' | 'am';
+  declare transcriptSegments: TranscriptSegment[];
   declare captionSettings: CaptionSettings;
 
   private abortController: AbortController | null = null;
   private requestId = 0;
+  private transcriptRequestId = 0;
   private statusMessage = '';
   private statusAnnouncer: Announcer | null = null;
   private errorAnnouncer: Announcer | null = null;
@@ -334,6 +349,8 @@ export class SavannaPlayer extends LitElement {
     this.duration = 0;
     this.playbackRate = 1;
     this.isFullscreen = false;
+    this.transcriptLanguage = 'en';
+    this.transcriptSegments = [];
     this.captionSettings = { ...DEFAULT_CAPTION_SETTINGS };
   }
 
@@ -362,6 +379,7 @@ export class SavannaPlayer extends LitElement {
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
     this.abortController?.abort();
     this.abortController = null;
+    this.transcriptRequestId += 1;
     super.disconnectedCallback();
   }
 
@@ -370,8 +388,14 @@ export class SavannaPlayer extends LitElement {
   };
 
   override willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has('captionLanguage')) {
+      this.transcriptLanguage = transcriptLanguageOf(this.captionLanguage);
+    }
     this.restoreCaptionSettings(changed);
     if (changed.has('lessonId') || changed.has('apiBase')) this.beginLoad();
+    const transcriptInputChanged =
+      changed.has('status') || changed.has('captionLanguage') || changed.has('transcriptLanguage');
+    if (this.status === 'ready' && transcriptInputChanged) void this.loadTranscript();
   }
 
   override updated(changed: PropertyValues<this>): void {
@@ -572,10 +596,35 @@ export class SavannaPlayer extends LitElement {
             >
           </button>
         </div>
+        ${
+          this.status === 'ready'
+            ? html`<savanna-transcript
+                .segments=${this.transcriptSegments}
+                .currentTime=${this.currentTime}
+                .language=${this.transcriptLanguage}
+                @savanna-transcript-seek=${this.onTranscriptSeek}
+                @savanna-transcript-language=${this.onTranscriptLanguage}
+              ></savanna-transcript>`
+            : nothing
+        }
         ${this.renderCaptionControls()}
       </section>
     `;
   }
+
+  private onTranscriptSeek = (event: CustomEvent<TranscriptSeekDetail>): void => {
+    const seconds = event.detail?.seconds;
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return;
+    this.controller?.seekTo(seconds);
+    this.currentTime = this.videoElement?.currentTime ?? seconds;
+  };
+
+  private onTranscriptLanguage = (event: CustomEvent<TranscriptLanguageDetail>): void => {
+    const language = event.detail?.language;
+    if (language !== 'en' && language !== 'am') return;
+    if (language === this.transcriptLanguage) return;
+    this.transcriptLanguage = language;
+  };
 
   private renderCaptionControls() {
     const settings = this.captionSettings;
@@ -737,6 +786,9 @@ export class SavannaPlayer extends LitElement {
   private beginLoad(): void {
     this.abortController?.abort();
     this.abortController = null;
+    this.transcriptRequestId += 1;
+    this.transcriptSegments = [];
+    this.transcriptLanguage = transcriptLanguageOf(this.captionLanguage);
 
     const lessonId = this.lessonId.trim();
     const apiBase = this.apiBase.trim();
@@ -818,6 +870,36 @@ export class SavannaPlayer extends LitElement {
   private isCurrent(requestId: number, controller: AbortController): boolean {
     return this.isConnected && this.requestId === requestId && !controller.signal.aborted;
   }
+
+  private async loadTranscript(): Promise<void> {
+    const language = this.transcriptLanguage;
+    const lessonId = this.lessonId.trim();
+    const apiBase = this.apiBase.trim();
+    if (this.status !== 'ready' || lessonId === '' || apiBase === '') return;
+
+    const requestId = ++this.transcriptRequestId;
+    try {
+      const transcript = await new LessonClient(apiBase).getTranscript(lessonId, language);
+      if (!this.isTranscriptCurrent(requestId, language)) return;
+      this.transcriptSegments = Array.isArray(transcript.segments) ? transcript.segments : [];
+    } catch {
+      if (!this.isTranscriptCurrent(requestId, language)) return;
+      this.transcriptSegments = [];
+    }
+  }
+
+  private isTranscriptCurrent(requestId: number, language: 'en' | 'am'): boolean {
+    return (
+      this.isConnected &&
+      this.status === 'ready' &&
+      requestId === this.transcriptRequestId &&
+      language === this.transcriptLanguage
+    );
+  }
+}
+
+function transcriptLanguageOf(value: string): 'en' | 'am' {
+  return value === 'am' ? 'am' : 'en';
 }
 
 function describeLesson(lesson: Lesson): { status: 'ready' | 'empty'; message: string } {
