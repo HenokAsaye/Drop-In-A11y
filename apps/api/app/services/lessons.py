@@ -1,3 +1,6 @@
+import hashlib
+import json
+from datetime import datetime
 from urllib.parse import urlencode
 
 from app.core.errors import NotFoundError
@@ -9,6 +12,7 @@ from app.schemas.lesson import (
     LessonOut,
     MediaSources,
     OfflinePackageOut,
+    OfflineResource,
     TranscriptOut,
     TranscriptRef,
 )
@@ -30,7 +34,8 @@ class LessonService:
         return self._to_lesson(await self._require(lesson_id)).captions
 
     async def get_offline_package(self, lesson_id: str) -> OfflinePackageOut:
-        raise NotImplementedError("LessonService.get_offline_package")
+        lesson = await self._require(lesson_id)
+        return self._to_offline_package(lesson)
 
     async def get_documents(self, lesson_id: str) -> list[LessonDocumentOut]:
         return self._to_lesson(await self._require(lesson_id)).documents
@@ -40,6 +45,115 @@ class LessonService:
         if lesson is None:
             raise NotFoundError("Lesson", lesson_id)
         return lesson
+
+    def _to_offline_package(self, lesson: Lesson) -> OfflinePackageOut:
+        resources: list[OfflineResource] = []
+
+        if lesson.audio_path:
+            resources.append(
+                OfflineResource(
+                    type="audio",
+                    url=self._media_url(lesson.audio_path),
+                    language=lesson.language,
+                    title=lesson.title,
+                )
+            )
+
+        for transcript in lesson.transcripts:
+            resources.append(
+                OfflineResource(
+                    type="transcript",
+                    url=self._transcript_url(lesson.id, transcript.language),
+                    language=transcript.language,
+                    title=transcript.label,
+                )
+            )
+
+        for track in lesson.captions:
+            resources.append(
+                OfflineResource(
+                    type="captions",
+                    url=self._media_url(track.path),
+                    language=track.language,
+                    title=track.label,
+                )
+            )
+
+        if lesson.offline_html_path:
+            resources.append(
+                OfflineResource(
+                    type="html",
+                    url=self._media_url(lesson.offline_html_path),
+                    language=lesson.language,
+                    title=lesson.title,
+                )
+            )
+
+        for document in lesson.documents:
+            if document.html_path:
+                resources.append(
+                    OfflineResource(
+                        type="document",
+                        url=self._media_url(document.html_path),
+                        language=document.language,
+                        title=document.title,
+                    )
+                )
+            if document.pdf_path:
+                resources.append(
+                    OfflineResource(
+                        type="document",
+                        url=self._media_url(document.pdf_path),
+                        language=document.language,
+                        title=document.title,
+                    )
+                )
+
+        version = self._lesson_version(lesson)
+        return OfflinePackageOut(
+            lesson_id=lesson.id,
+            version=version,
+            resources=resources,
+        )
+
+    def _lesson_version(self, lesson: Lesson) -> str:
+        updated_at_val = getattr(lesson, "updated_at", None)
+        updated_at_str = (
+            updated_at_val.isoformat() if isinstance(updated_at_val, datetime) else None
+        )
+        payload = {
+            "id": lesson.id,
+            "title": lesson.title,
+            "description": lesson.description,
+            "language": lesson.language,
+            "video_path": lesson.video_path,
+            "audio_path": lesson.audio_path,
+            "sign_language_path": lesson.sign_language_path,
+            "audio_description_path": lesson.audio_description_path,
+            "poster_path": lesson.poster_path,
+            "offline_html_path": lesson.offline_html_path,
+            "updated_at": updated_at_str,
+            "captions": [
+                {"language": c.language, "label": c.label, "path": c.path}
+                for c in sorted(lesson.captions, key=lambda c: (c.language, c.path))
+            ],
+            "transcripts": [
+                {"language": t.language, "label": t.label, "segments": t.segments}
+                for t in sorted(lesson.transcripts, key=lambda t: t.language)
+            ],
+            "documents": [
+                {
+                    "title": d.title,
+                    "language": d.language,
+                    "html_path": d.html_path,
+                    "pdf_path": d.pdf_path,
+                    "position": d.position,
+                }
+                for d in sorted(lesson.documents, key=lambda d: (d.position, d.title))
+            ],
+        }
+        encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()[:16]
 
     def _to_lesson(self, lesson: Lesson) -> LessonOut:
         return LessonOut(
