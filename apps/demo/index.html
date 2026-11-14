@@ -24,10 +24,125 @@
         sw-url="savanna-sw.js"
       ></savanna-player>
 
-      <section aria-labelledby="careers-heading">
+      <section id="careers" aria-labelledby="careers-heading">
         <h2 id="careers-heading">Career opportunities</h2>
-        <savanna-job-card></savanna-job-card>
+        <p id="careers-status" role="status" aria-live="polite">Loading career opportunities.</p>
+        <p id="careers-error" role="alert" hidden></p>
       </section>
+      <script type="module">
+        const section = document.getElementById('careers');
+        const status = document.getElementById('careers-status');
+        const error = document.getElementById('careers-error');
+        const failure = 'Career opportunities could not be loaded.';
+
+        function stillThere() {
+          return section !== null && section.isConnected;
+        }
+
+        function showStatus(message) {
+          if (!stillThere() || status === null || error === null) return;
+          error.hidden = true;
+          error.textContent = '';
+          status.textContent = message;
+        }
+
+        function showError() {
+          if (!stillThere() || status === null || error === null) return;
+          status.textContent = '';
+          error.textContent = failure;
+          error.hidden = false;
+        }
+
+        function careersUrl(apiBase) {
+          const base = new URL(apiBase);
+          const prefix = base.href.endsWith('/') ? base.href : `${base.href}/`;
+          return new URL('api/v1/careers', prefix).href;
+        }
+
+        function isNullableString(value) {
+          return value === undefined || value === null || typeof value === 'string';
+        }
+
+        function isCareer(item) {
+          if (typeof item !== 'object' || item === null || Array.isArray(item)) return false;
+          return (
+            typeof item.id === 'number' &&
+            Number.isFinite(item.id) &&
+            typeof item.title === 'string' &&
+            typeof item.organization === 'string' &&
+            typeof item.description === 'string' &&
+            typeof item.applicationUrl === 'string' &&
+            isNullableString(item.location) &&
+            isNullableString(item.audioSummaryUrl) &&
+            isNullableString(item.accommodations) &&
+            isNullableString(item.certificateVerificationUrl)
+          );
+        }
+
+        function isCareerPage(body) {
+          if (typeof body !== 'object' || body === null || Array.isArray(body)) return false;
+          if (!Array.isArray(body.items)) return false;
+          if (![body.total, body.limit, body.offset].every((value) => Number.isFinite(value))) {
+            return false;
+          }
+          return body.items.every(isCareer);
+        }
+
+        async function loadCareers() {
+          if (!stillThere()) return;
+          showStatus('Loading career opportunities.');
+
+          const apiBase =
+            document.querySelector('savanna-player')?.getAttribute('api-base')?.trim() ?? '';
+          if (apiBase === '') {
+            showError();
+            return;
+          }
+
+          let url;
+          try {
+            url = careersUrl(apiBase);
+          } catch {
+            showError();
+            return;
+          }
+
+          try {
+            const response = await fetch(url, { headers: { accept: 'application/json' } });
+            if (!stillThere()) return;
+            if (!response.ok) {
+              showError();
+              return;
+            }
+            const body = await response.json();
+            if (!stillThere()) return;
+            if (!isCareerPage(body)) {
+              showError();
+              return;
+            }
+            if (!stillThere() || section === null) return;
+            section.querySelectorAll('savanna-job-card').forEach((card) => {
+              card.remove();
+            });
+            if (body.items.length === 0) {
+              showStatus('No career opportunities are available.');
+              return;
+            }
+            showStatus('');
+            if (!stillThere() || section === null) return;
+            for (const job of body.items) {
+              const card = document.createElement('savanna-job-card');
+              card.job = job;
+              section.append(card);
+            }
+          } catch {
+            if (!stillThere()) return;
+            showError();
+          }
+        }
+
+        void loadCareers();
+      </script>
     </main>
 
     <footer>

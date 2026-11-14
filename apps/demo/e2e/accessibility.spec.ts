@@ -28,7 +28,65 @@ test.describe('automated accessibility (spec 11.2)', () => {
   test.fixme('every player control is reachable and operable by keyboard alone', async () => {});
   test.fixme('there are no keyboard traps in the player or sign-language window', async () => {});
   test.fixme('content has no horizontal scrolling at 200% zoom (1280px at 2x)', async () => {});
-  test.fixme('career cards remain usable at 200% zoom', async () => {});
+  test('career cards remain usable at 640px and 320px layout widths', async ({ page }) => {
+    const job = {
+      id: 1,
+      title: 'Network Support Technician for campus learning spaces and remote classrooms',
+      organization: 'Savanna Learning',
+      description:
+        'Help learners connect to campus networks, set up classroom equipment, and explain connection problems in plain language during in-person and remote support appointments.',
+      location: 'Addis Ababa',
+      applicationUrl: 'https://jobs.example/network-support-technician',
+      audioSummaryUrl: 'https://media.example/network-support-technician-summary.mp3',
+      accommodations:
+        'Interviews can include sign language interpretation, extra time, and a written alternative to a spoken task.',
+      certificateVerificationUrl: null,
+    };
+
+    await page.route(
+      (url) => url.pathname === '/api/v1/careers',
+      async (route) => {
+        if (route.request().method() !== 'GET') {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: [job], total: 1, limit: 20, offset: 0 }),
+        });
+      },
+    );
+
+    // 640px is the CSS layout width of a 1280px screen at 200% zoom. The viewport is resized;
+    // the browser zoom setting is left unchanged.
+    const card = page.locator('savanna-job-card');
+    const title = card.getByRole('heading', { name: job.title });
+    const apply = card.getByRole('link', {
+      name: `Apply for ${job.title} at ${job.organization}`,
+    });
+
+    async function expectUsable(): Promise<void> {
+      await expect(card).toBeVisible();
+      await expect(title).toBeVisible();
+      await expect(apply).toBeVisible();
+      expect(await card.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
+        false,
+      );
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        ),
+      ).toBe(false);
+    }
+
+    await page.setViewportSize({ width: 640, height: 900 });
+    await page.goto('/');
+    await expectUsable();
+
+    await page.setViewportSize({ width: 320, height: 900 });
+    await expectUsable();
+  });
   test('downloaded lesson works after going offline', async ({ page, context }) => {
     const lesson = {
       id: 'networking-101',
