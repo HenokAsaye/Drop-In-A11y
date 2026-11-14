@@ -1,10 +1,21 @@
-import type {
-  CaptionTrack,
-  Lesson,
-  LessonDocument,
-  OfflinePackage,
-  Transcript,
+import {
+  API_VERSION_PREFIX,
+  type CaptionTrack,
+  type Lesson,
+  type LessonDocument,
+  type OfflinePackage,
+  type Transcript,
 } from '@savanna/contracts';
+
+const FAILURE_MESSAGE = 'The lesson could not be loaded.';
+
+/** A lesson request failed with a message safe to show to a learner. */
+export class LessonRequestError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'LessonRequestError';
+  }
+}
 
 /** Thin client for the BridgePlayer API. Media bytes are fetched by the browser, not by this client. */
 export class LessonClient {
@@ -13,31 +24,88 @@ export class LessonClient {
     protected readonly fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
   ) {}
 
-  async getLesson(lessonId: string, signal?: AbortSignal): Promise<Lesson> {
-    const base = this.apiBase.replace(/\/+$/, '');
-    const url = `${base}/api/v1/lessons/${encodeURIComponent(lessonId)}`;
-    const response = await this.fetchImpl(url, { signal });
-    if (!response.ok) {
-      throw new Error(
-        `Failed to load lesson '${lessonId}': ${response.status} ${response.statusText}`,
-      );
+  getLesson(lessonId: string, signal?: AbortSignal): Promise<Lesson> {
+    return this.request(this.lessonPath(lessonId), signal);
+  }
+
+  getTranscript(lessonId: string, language: string): Promise<Transcript> {
+    const query = new URLSearchParams({ language });
+    return this.request(`${this.lessonPath(lessonId)}/transcript?${query}`);
+  }
+
+  getCaptions(lessonId: string): Promise<CaptionTrack[]> {
+    return this.request(`${this.lessonPath(lessonId)}/captions`);
+  }
+
+  getOfflinePackage(lessonId: string): Promise<OfflinePackage> {
+    return this.request(`${this.lessonPath(lessonId)}/offline`);
+  }
+
+  getDocuments(lessonId: string): Promise<LessonDocument[]> {
+    return this.request(`${this.lessonPath(lessonId)}/documents`);
+  }
+
+  private lessonPath(lessonId: string): string {
+    return `${API_VERSION_PREFIX}/lessons/${encodeURIComponent(lessonId)}`;
+  }
+
+  private endpoint(path: string): string {
+    let base: URL;
+    try {
+      base = new URL(this.apiBase.trim());
+    } catch (cause) {
+      throw new LessonRequestError(FAILURE_MESSAGE, { cause });
     }
-    return (await response.json()) as Lesson;
+    const prefix = base.href.endsWith('/') ? base.href : `${base.href}/`;
+    return new URL(path.replace(/^\/+/, ''), prefix).href;
   }
 
-  getTranscript(_lessonId: string, _language: string): Promise<Transcript> {
-    throw new Error('Not implemented: LessonClient.getTranscript');
-  }
+  private async request<T>(path: string, signal?: AbortSignal): Promise<T> {
+    let response: Response;
+    try {
+      response = await this.fetchImpl(this.endpoint(path), {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        signal,
+      });
+    } catch (cause) {
+      if (isAbortError(cause)) throw cause;
+      throw new LessonRequestError(FAILURE_MESSAGE, { cause });
+    }
 
-  getCaptions(_lessonId: string): Promise<CaptionTrack[]> {
-    throw new Error('Not implemented: LessonClient.getCaptions');
-  }
+    if (!response.ok) {
+      throw new LessonRequestError(await readErrorMessage(response));
+    }
 
-  getOfflinePackage(_lessonId: string): Promise<OfflinePackage> {
-    throw new Error('Not implemented: LessonClient.getOfflinePackage');
+    try {
+      return (await response.json()) as T;
+    } catch (cause) {
+      if (isAbortError(cause)) throw cause;
+      throw new LessonRequestError(FAILURE_MESSAGE, { cause });
+    }
   }
+}
 
-  getDocuments(_lessonId: string): Promise<LessonDocument[]> {
-    throw new Error('Not implemented: LessonClient.getDocuments');
+function isAbortError(error: unknown): boolean {
+  return isNamed(error, 'AbortError');
+}
+
+function isNamed(error: unknown, name: string): boolean {
+  return typeof error === 'object' && error !== null && 'name' in error && error.name === name;
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  const fallback = `${FAILURE_MESSAGE} (${response.status}).`;
+  try {
+    const body: unknown = await response.json();
+    if (!isRecord(body) || typeof body.detail !== 'string') return fallback;
+    const detail = body.detail.trim();
+    return detail === '' ? fallback : detail;
+  } catch {
+    return fallback;
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }

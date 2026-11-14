@@ -37,6 +37,28 @@ async def test_get_returns_none_for_unknown_lesson(session: AsyncSession) -> Non
     assert await LessonRepository(session).get("missing-lesson") is None
 
 
+async def test_get_transcript_returns_the_requested_language(session: AsyncSession) -> None:
+    session.add(networking_lesson())
+    await session.commit()
+
+    transcript = await LessonRepository(session).get_transcript("networking-101", "en")
+
+    assert transcript is not None
+    assert transcript.label == "English"
+    assert transcript.segments[0]["text"] == "Welcome to our networking lesson."
+
+
+async def test_get_transcript_returns_none_when_language_or_lesson_is_missing(
+    session: AsyncSession,
+) -> None:
+    session.add(networking_lesson())
+    await session.commit()
+    repository = LessonRepository(session)
+
+    assert await repository.get_transcript("networking-101", "am") is None
+    assert await repository.get_transcript("missing-lesson", "en") is None
+
+
 async def test_children_are_loaded_before_the_session_detaches_them(session: AsyncSession) -> None:
     session.add(networking_lesson())
     await session.commit()

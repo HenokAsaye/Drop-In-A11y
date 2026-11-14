@@ -1,8 +1,13 @@
 import { PLAYER_TAG, type Lesson, type PlayerStatus } from '@savanna/contracts';
-import { LitElement, css, html, type PropertyValues } from 'lit';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 
+import { Announcer } from '../accessibility/announcer';
+import { resolveShortcut } from '../accessibility/keyboard-shortcuts';
 import { LessonClient } from '../api/lesson-client';
 import { MediaController } from '../media/media-controller';
+
+const EMPTY_MESSAGE = 'This lesson has no video.';
+const FAILURE_MESSAGE = 'The lesson could not be loaded.';
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -14,7 +19,7 @@ function formatTime(seconds: number): string {
 
 /**
  * <savanna-player lesson-id="..." api-base="..."> — the single entry point host websites embed.
- * Composes the media, captions, transcript, sign-language, audio-description and offline features.
+ * Loads lesson metadata from api-base and exposes loading, ready, empty, and error states.
  */
 export class SavannaPlayer extends LitElement {
   static override properties = {
@@ -31,7 +36,6 @@ export class SavannaPlayer extends LitElement {
     duration: { state: true },
     playbackRate: { state: true },
     isFullscreen: { state: true },
-    errorMessage: { state: true },
   };
 
   static override styles = css`
@@ -39,6 +43,7 @@ export class SavannaPlayer extends LitElement {
       display: block;
       font: inherit;
       color: inherit;
+      line-height: 1.5;
       box-sizing: border-box;
     }
 
@@ -50,6 +55,16 @@ export class SavannaPlayer extends LitElement {
     *::before,
     *::after {
       box-sizing: inherit;
+    }
+
+    section {
+      min-height: 1.5em;
+    }
+
+    .status {
+      margin: 0;
+      max-width: 42rem;
+      overflow-wrap: anywhere;
     }
 
     .player-container {
@@ -74,20 +89,6 @@ export class SavannaPlayer extends LitElement {
       width: 100%;
       height: auto;
       max-height: 80vh;
-    }
-
-    .status-message {
-      padding: 0.75rem 1rem;
-      text-align: center;
-      background: #1e293b;
-      color: #f8fafc;
-      margin: 0;
-      font-size: 0.875rem;
-    }
-
-    .error-message {
-      background: #7f1d1d;
-      color: #fef2f2;
     }
 
     .controls-toolbar {
@@ -180,10 +181,42 @@ export class SavannaPlayer extends LitElement {
   declare duration: number;
   declare playbackRate: number;
   declare isFullscreen: boolean;
-  declare errorMessage: string;
 
   private abortController: AbortController | null = null;
+  private requestId = 0;
+  private statusMessage = '';
+  private statusAnnouncer: Announcer | null = null;
+  private errorAnnouncer: Announcer | null = null;
+  private connectedOnce = false;
   private _controller: MediaController | null = null;
+
+  private readonly onKeyDown = (event: KeyboardEvent): void => {
+    const action = resolveShortcut(event, this);
+    if (!action) return;
+    switch (action) {
+      case 'toggle-play':
+        void this.togglePlay();
+        break;
+      case 'seek-backward':
+        this.controller?.seekBy(-5);
+        break;
+      case 'seek-forward':
+        this.controller?.seekBy(5);
+        break;
+      case 'volume-up':
+        this.controller?.changeVolume(0.1);
+        break;
+      case 'volume-down':
+        this.controller?.changeVolume(-0.1);
+        break;
+      case 'toggle-mute':
+        this.toggleMute();
+        break;
+      case 'toggle-fullscreen':
+        void this.toggleFullscreen();
+        break;
+    }
+  };
 
   constructor() {
     super();
@@ -200,7 +233,6 @@ export class SavannaPlayer extends LitElement {
     this.duration = 0;
     this.playbackRate = 1;
     this.isFullscreen = false;
-    this.errorMessage = '';
   }
 
   get videoElement(): HTMLVideoElement | null {
@@ -215,76 +247,32 @@ export class SavannaPlayer extends LitElement {
     return this._controller;
   }
 
-  override connectedCallback() {
+  override connectedCallback(): void {
     super.connectedCallback();
+    this.addEventListener('keydown', this.onKeyDown);
     document.addEventListener('fullscreenchange', this.handleFullscreenChange);
+    if (this.connectedOnce) this.beginLoad();
+    this.connectedOnce = true;
   }
 
-  override disconnectedCallback() {
-    super.disconnectedCallback();
+  override disconnectedCallback(): void {
+    this.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
-    if (this.abortController) {
-      this.abortController.abort();
-      this.abortController = null;
-    }
+    this.abortController?.abort();
+    this.abortController = null;
+    super.disconnectedCallback();
   }
 
-  private handleFullscreenChange = () => {
+  private handleFullscreenChange = (): void => {
     this.isFullscreen = Boolean(document.fullscreenElement);
   };
 
-  async loadLesson(): Promise<void> {
-    if (!this.lessonId || !this.apiBase) {
-      return;
-    }
-
-    if (this.abortController) {
-      this.abortController.abort();
-    }
-    this.abortController = new AbortController();
-    const signal = this.abortController.signal;
-
-    this.status = 'loading';
-    this.dispatchEvent(new CustomEvent('savanna-status-change', { detail: { status: 'loading' } }));
-
-    try {
-      const client = new LessonClient(this.apiBase);
-      const lesson = await client.getLesson(this.lessonId, signal);
-      if (signal.aborted) return;
-
-      this.lesson = lesson;
-      const videoSrc = lesson.media?.video;
-      if (!videoSrc) {
-        this.status = 'empty';
-        this.dispatchEvent(
-          new CustomEvent('savanna-status-change', { detail: { status: 'empty' } }),
-        );
-        return;
-      }
-
-      this.videoSrc = videoSrc;
-      this.status = 'ready';
-      this.dispatchEvent(new CustomEvent('savanna-status-change', { detail: { status: 'ready' } }));
-    } catch (err: unknown) {
-      if (signal.aborted) return;
-      if (err instanceof Error && err.name === 'AbortError') return;
-      this.status = 'error';
-      const message = err instanceof Error ? err.message : String(err);
-      this.errorMessage = message;
-      this.dispatchEvent(new CustomEvent('savanna-status-change', { detail: { status: 'error' } }));
-      this.dispatchEvent(new CustomEvent('savanna-error', { detail: { message, cause: err } }));
-    }
+  override willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has('lessonId') || changed.has('apiBase')) this.beginLoad();
   }
 
-  override updated(changedProperties: PropertyValues<this>) {
-    super.updated(changedProperties);
-    if (changedProperties.has('lessonId') || changedProperties.has('apiBase')) {
-      if (this.lessonId && this.apiBase) {
-        queueMicrotask(() => {
-          void this.loadLesson();
-        });
-      }
-    }
+  override updated(): void {
+    this.syncAnnouncement();
   }
 
   togglePlay = async (): Promise<void> => {
@@ -334,61 +322,61 @@ export class SavannaPlayer extends LitElement {
     this.isFullscreen = Boolean(document.fullscreenElement);
   };
 
-  private handleVideoPlay = () => {
+  private handleVideoPlay = (): void => {
     this.isPaused = false;
   };
 
-  private handleVideoPause = () => {
+  private handleVideoPause = (): void => {
     this.isPaused = true;
   };
 
-  private handleVideoTimeUpdate = () => {
+  private handleVideoTimeUpdate = (): void => {
     if (this.videoElement) {
       this.currentTime = this.videoElement.currentTime;
     }
   };
 
-  private handleVideoDurationChange = () => {
+  private handleVideoDurationChange = (): void => {
     if (this.videoElement) {
       this.duration = this.videoElement.duration;
     }
   };
 
-  private handleVideoVolumeChange = () => {
+  private handleVideoVolumeChange = (): void => {
     if (this.videoElement) {
       this.volume = this.videoElement.volume;
       this.isMuted = this.videoElement.muted;
     }
   };
 
-  private handleVideoRateChange = () => {
+  private handleVideoRateChange = (): void => {
     if (this.videoElement) {
       this.playbackRate = this.videoElement.playbackRate;
     }
   };
 
-  private renderStatus() {
-    if (this.status === 'loading') {
-      return html`<p class="status-message" role="status" aria-live="polite">Loading lesson...</p>`;
-    }
-    if (this.status === 'error') {
-      return html`<p class="status-message error-message" role="alert">
-        ${this.errorMessage || 'Failed to load lesson'}
-      </p>`;
-    }
-    if (this.status === 'empty') {
-      return html`<p class="status-message" role="status">No media available</p>`;
-    }
-    return null;
-  }
-
   override render() {
+    const failed = this.status === 'error';
+    const videoSource = this.lesson?.media?.video ?? this.videoSrc;
     return html`
-      <section class="player-container" aria-label="Lesson player">
-        ${this.renderStatus()}
+      <section
+        class="player-container"
+        aria-label="Lesson player"
+        aria-busy=${this.status === 'loading' ? 'true' : nothing}
+      >
+        <p
+          id="player-status"
+          class="status"
+          data-state=${failed ? nothing : this.status}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          ?hidden=${failed}
+        ></p>
+        <p id="player-error" class="status" role="alert" ?hidden=${!failed}></p>
         <div class="video-wrapper">
           <video
-            src=${this.videoSrc || ''}
+            src=${videoSource}
             playsinline
             aria-label=${this.lesson?.title || 'Lesson video'}
             @play=${this.handleVideoPlay}
@@ -481,6 +469,104 @@ export class SavannaPlayer extends LitElement {
       </section>
     `;
   }
+
+  private beginLoad(): void {
+    this.abortController?.abort();
+    this.abortController = null;
+
+    const lessonId = this.lessonId.trim();
+    const apiBase = this.apiBase.trim();
+    if (lessonId === '' || apiBase === '') {
+      this.requestId += 1;
+      this.setOutcome('idle', '', null);
+      return;
+    }
+
+    const controller = new AbortController();
+    this.abortController = controller;
+    const requestId = ++this.requestId;
+    this.setOutcome('loading', `Loading lesson ${lessonId}.`, null);
+    void this.finishLoad(new LessonClient(apiBase), lessonId, controller, requestId);
+  }
+
+  private async finishLoad(
+    client: LessonClient,
+    lessonId: string,
+    controller: AbortController,
+    requestId: number,
+  ): Promise<void> {
+    try {
+      const lesson = await client.getLesson(lessonId, controller.signal);
+      if (!this.isCurrent(requestId, controller)) return;
+      const outcome = describeLesson(lesson);
+      this.setOutcome(outcome.status, outcome.message, lesson);
+    } catch (error: unknown) {
+      if (!this.isCurrent(requestId, controller) || isAbortError(error)) return;
+      const message =
+        error instanceof Error && error.message.trim() ? error.message : FAILURE_MESSAGE;
+      this.setOutcome('error', message, null);
+      this.dispatchEvent(
+        new CustomEvent('savanna-error', {
+          detail: { message, cause: error },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+    }
+  }
+
+  private setOutcome(status: PlayerStatus, message: string, lesson: Lesson | null): void {
+    const statusChanged = this.status !== status;
+    this.lesson = lesson;
+    this.videoSrc = lesson?.media?.video ?? '';
+    this.statusMessage = message;
+    this.status = status;
+    if (statusChanged) {
+      this.dispatchEvent(
+        new CustomEvent('savanna-status-change', {
+          detail: { status },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+      return;
+    }
+    this.syncAnnouncement();
+  }
+
+  private syncAnnouncement(): void {
+    const statusRegion = this.renderRoot.querySelector<HTMLElement>('#player-status');
+    const errorRegion = this.renderRoot.querySelector<HTMLElement>('#player-error');
+    if (statusRegion === null || errorRegion === null) return;
+    this.statusAnnouncer ??= new Announcer(statusRegion);
+    this.errorAnnouncer ??= new Announcer(errorRegion);
+    if (this.status === 'error') {
+      this.errorAnnouncer.announce(this.statusMessage);
+      this.statusAnnouncer.announce('');
+      return;
+    }
+    this.statusAnnouncer.announce(this.statusMessage);
+    this.errorAnnouncer.announce('');
+  }
+
+  private isCurrent(requestId: number, controller: AbortController): boolean {
+    return this.isConnected && this.requestId === requestId && !controller.signal.aborted;
+  }
+}
+
+function describeLesson(lesson: Lesson): { status: 'ready' | 'empty'; message: string } {
+  const video = lesson.media?.video;
+  if (typeof video !== 'string' || video.trim() === '') {
+    return { status: 'empty', message: EMPTY_MESSAGE };
+  }
+  const title = lesson.title.trim();
+  return { status: 'ready', message: title === '' ? 'Lesson ready.' : `Lesson ready: ${title}.` };
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError'
+  );
 }
 
 if (!customElements.get(PLAYER_TAG)) {
