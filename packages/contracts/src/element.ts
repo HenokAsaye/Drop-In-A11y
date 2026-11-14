@@ -14,6 +14,11 @@ export interface SavannaPlayerAttributes {
   'caption-language'?: string;
   /** Initial interface language for player labels. */
   lang?: string;
+  /**
+   * URL of `savanna-sw.js` on the host's own origin. Optional; defaults to "/savanna-sw.js".
+   * Service workers are same-origin only, so the host must serve the file itself.
+   */
+  'sw-url'?: string;
 }
 
 export type PlayerStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'error';

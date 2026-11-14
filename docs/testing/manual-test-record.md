@@ -91,9 +91,23 @@ Lesson:          Local WebVTT fixture, plus the demo page (the lesson API was no
 | Captions EN / AM | Open a page that uses the player's `::cue` font stack and a WebVTT cue `አማርኛ እንኳን ደህና መጡ`. Switch the demo language control to Amharic. | Ethiopic letters, not empty boxes. English and Amharic can be chosen. | Pass | The cue and a 64px sample both drew Ethiopic letters. The demo language list is English and Amharic (አማርኛ). The choice is saved and restored on reload (Playwright, desktop and mobile). The seeded networking-101 file was not played. |
 | Caption customization | Change caption size and background in the demo, reload, and check the high-contrast control. | Size, colors, and high contrast are available and the size and background survive reload. | Pass | Playwright set size to 150% and background to `#00aa00`; both were still set after reload. High contrast is a checkbox labeled "High contrast" and forces black text on yellow in the cue rule. A painted cue on the seeded lesson was not checked. |
 
+## Session 2026-11-14 — Offline downloads (Spec 4.6)
+
+Automated disconnect test only (Playwright `context.setOffline(true)`, Chromium and Pixel 7
+emulation). No device or screen-reader session yet.
+
+| Check | Steps | Expected | Result | Notes |
+| ----- | ----- | -------- | ------ | ----- |
+| Downloaded file served offline | Download audio, go offline, fetch the file | Saved copy is returned | Pass | `e2e/accessibility.spec.ts`; the fake network source is removed before going offline |
+| Undownloaded file fails offline | Go offline, fetch a file that was not downloaded | Request fails | Pass | Control check, so the test cannot pass by accident |
+| Offline in airplane mode on a real phone | Download, enable airplane mode, reopen lesson | Audio/text/HTML work without network | Pending | Needs a device session (Chrome Android) |
+| Download controls with a screen reader | Tab to the group, activate a download | Names, progress and result announced | Pending | Needs NVDA / TalkBack |
+
 ## Known limitations
 
 | Date | Limitation | Impact | Planned fix |
 | ---- | ---------- | ------ | ----------- |
 | 2026-11-14 | The demo end-to-end job does not serve the seeded networking-101 video or WebVTT files | Language, size, and color checks cover the controls and the saved settings. They do not show a cue on that lesson. | Repeat the cue check when the lesson seed is available |
 | 2026-11-14 | The Ethiopic face is requested from Google Fonts | If that request is blocked, captions use an Ethiopic font already on the computer (Noto Sans Ethiopic, Abyssinica SIL, Nyala, or Ebrima). This Linux machine already has Noto Sans Ethiopic, and that is what drew the letters. | None. The font stack is the fallback |
+| 2026-11-14 | The service worker only answers downloaded lesson files. The host page itself is not cached. | Reloading the host page while offline fails unless the host caches its own page. Only lesson files requested by an already-open page are proven to work offline. | Decide whether the worker should also cache the host page shell |
+| 2026-11-14 | Host sites must serve `savanna-sw.js` from their own origin. | Without it, downloads are saved but offline playback is not set up. The player says so. | Documented in `docs/integration.md` |

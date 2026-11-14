@@ -29,5 +29,58 @@ test.describe('automated accessibility (spec 11.2)', () => {
   test.fixme('there are no keyboard traps in the player or sign-language window', async () => {});
   test.fixme('content has no horizontal scrolling at 200% zoom (1280px at 2x)', async () => {});
   test.fixme('career cards remain usable at 200% zoom', async () => {});
-  test.fixme('downloaded lesson works after going offline', async () => {});
+  test('downloaded lesson works after going offline', async ({ page, context }) => {
+    const lesson = {
+      id: 'networking-101',
+      title: 'Networking 101',
+      description: 'Learn networking.',
+      language: 'en',
+      media: {
+        video: '/test-media/lesson.mp4',
+        audio: null,
+        signLanguage: null,
+        audioDescription: null,
+        poster: null,
+      },
+      captions: [],
+      transcripts: [],
+      documents: [],
+    };
+    const audioUrl = '/test-media/networking-101.mp3';
+    await page.route(/\/api\/v1\/lessons\/networking-101$/, (route) =>
+      route.fulfill({ json: lesson }),
+    );
+    await page.route(/\/api\/v1\/lessons\/networking-101\/offline$/, (route) =>
+      route.fulfill({
+        json: {
+          lessonId: 'networking-101',
+          version: 'v1',
+          resources: [{ type: 'audio', url: `http://localhost:4173${audioUrl}` }],
+        },
+      }),
+    );
+    await page.route('**/test-media/networking-101.mp3', (route) =>
+      route.fulfill({ body: 'audio-bytes', contentType: 'audio/mpeg' }),
+    );
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Download audio only' }).click();
+    await expect(page.getByText('Downloaded for offline use')).toBeVisible();
+
+    // Remove the fake network source so only the saved copy can answer, then disconnect.
+    await page.unroute('**/test-media/networking-101.mp3');
+    await context.setOffline(true);
+
+    const saved = await page.evaluate((url) => fetch(url).then((r) => r.text()), audioUrl);
+    expect(saved).toBe('audio-bytes');
+    const notSaved = await page.evaluate(
+      (url) =>
+        fetch(url).then(
+          () => 'loaded',
+          () => 'failed',
+        ),
+      '/test-media/never-downloaded.mp3',
+    );
+    expect(notSaved).toBe('failed');
+  });
 });
