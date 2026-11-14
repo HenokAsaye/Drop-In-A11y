@@ -8,6 +8,7 @@ export { SignLanguageWindow } from './sign-language/sign-language-window';
 export { TranscriptPanel } from './transcript/transcript-panel';
 export { LessonClient } from './api/lesson-client';
 export { MediaSync } from './media/media-sync';
+export { AudioDescriptionTrack } from './audio-description/audio-description-track';
 export {
   KEYBOARD_SHORTCUTS,
   SEEK_STEP_SECONDS,
