@@ -235,5 +235,78 @@ describe('secondary media sync (spec 4.3, 4.4)', () => {
     sync.dispose();
   });
 
-  it.todo('audio description can be enabled and disabled');
+  it('audio description can be enabled and disabled', async () => {
+    const descriptionUrl = 'https://media.example/networking-101-description.mp3';
+    const player = document.createElement('savanna-player');
+    document.body.append(player);
+    await player.updateComplete;
+
+    player.lesson = lessonWithSignLanguage();
+    await player.updateComplete;
+    expect(player.shadowRoot?.querySelector('.audio-description-btn')).toBeNull();
+
+    player.lesson = lessonWithAudioDescription(descriptionUrl);
+    await player.updateComplete;
+
+    const toggle = player.shadowRoot?.querySelector<HTMLButtonElement>('.audio-description-btn');
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute('aria-label')).toBe('Audio description');
+    expect(toggle?.querySelector('.visually-hidden')?.textContent).toBe('Audio description');
+    expect(toggle?.getAttribute('aria-pressed')).toBe('false');
+    expect(player.audioDescriptionElement).toBeNull();
+
+    toggle?.click();
+    await player.updateComplete;
+
+    expect(toggle?.getAttribute('aria-pressed')).toBe('true');
+    const description = player.audioDescriptionElement;
+    expect(description).toBeInstanceOf(HTMLAudioElement);
+    expect(description?.getAttribute('src')).toBe(descriptionUrl);
+
+    const video = player.videoElement;
+    expect(video).not.toBeNull();
+    const playSpy = vi.spyOn(description!, 'play').mockResolvedValue(undefined);
+    Object.defineProperty(video!, 'paused', { value: false, configurable: true });
+    video?.dispatchEvent(new Event('play'));
+    expect(playSpy).toHaveBeenCalled();
+
+    video!.currentTime = 12;
+    video?.dispatchEvent(new Event('seeked'));
+    expect(description?.currentTime).toBe(12);
+
+    video!.playbackRate = 1.25;
+    video?.dispatchEvent(new Event('ratechange'));
+    expect(description?.playbackRate).toBe(1.25);
+
+    const pauseSpy = vi.spyOn(description!, 'pause').mockImplementation(() => {});
+    toggle?.click();
+    await player.updateComplete;
+
+    expect(toggle?.getAttribute('aria-pressed')).toBe('false');
+    expect(pauseSpy).toHaveBeenCalled();
+    expect(player.audioDescriptionElement).toBeNull();
+
+    playSpy.mockClear();
+    video?.dispatchEvent(new Event('play'));
+    expect(playSpy).not.toHaveBeenCalled();
+  });
 });
+
+function lessonWithAudioDescription(url: string): Lesson {
+  return {
+    id: 'networking-101',
+    title: 'Introduction to Networking',
+    description: 'Learn the fundamentals of computer networking.',
+    language: 'en',
+    media: {
+      video: 'https://media.example/video.mp4',
+      audio: null,
+      signLanguage: null,
+      audioDescription: url,
+      poster: null,
+    },
+    captions: [],
+    transcripts: [],
+    documents: [],
+  };
+}
