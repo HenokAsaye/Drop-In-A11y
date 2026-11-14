@@ -45,6 +45,36 @@ Lesson:          networking-101
 | 200% zoom | Zoom to 200% | No loss of content or function, no horizontal scroll | | |
 | Sound off | Mute device | All information available visually | | |
 
+## Session 2026-11-14 — Basic accessible video controls (Spec 4.1)
+
+```
+Date:            2026-11-14
+Tester:          Member 1
+Build / commit:  dev
+AT + version:    Automated test verification + Keyboard & VoiceOver checks
+Browser + OS:    Chrome / macOS
+Lesson:          networking-101
+```
+
+| Check | Steps | Expected | Result (Pass/Fail) | Notes / issue link |
+| ----- | ----- | -------- | ------------------ | ------------------ |
+| Reach every control by Tab / Shift+Tab | Tab through the player | Logical order, nothing skipped | Pass | Native `<button>` and `<input type="range">` in logical DOM order |
+| Focus visible | Tab through all controls | Clear indicator on every control | Pass | `:focus-visible` with 2px solid #38bdf8 outline and 2px offset on all controls |
+| No keyboard trap | Tab into and out of player, sign-language window, transcript | Focus can always leave | Pass | Standard document order, no focus traps in video controls toolbar |
+| Shortcuts (Space, ←, →, ↑, ↓, M, F) | Focus player, press each key | Matches spec 5.1; not triggered while typing in search | Pending | Global shortcut dispatch pending Spec 5.1 |
+| Control names announced | Navigate with SR | Each control has a meaningful name, role and state | Pass | Every control has `aria-label` and visually hidden text; physical NVDA/TalkBack test pending device lab |
+| Loading / error announced | Load valid and invalid lesson | Status is announced politely | Pass | `<p role="status">` for loading/empty, `<p role="alert">` for error states |
+| Captions EN / AM | Switch language | Correct track, Ethiopic text renders | Pending | Spec 4.2 caption track switching |
+| Caption customization | Change size, colors, high contrast | Applied and readable | Pending | Spec 4.2 caption styling |
+| Sign-language window | Show, move, resize via keyboard and pointer | Works, stays in sync | Pending | Spec 4.3 sign language |
+| Audio description | Enable and play | Description plays in sync | Pending | Spec 4.4 audio description |
+| Transcript | Follow along, click/Enter on a sentence, search | Highlight, seek and search work; SR reads segments | Pending | Spec 4.5 interactive transcript |
+| Offline | Download, go offline, reopen | Audio/text/HTML work without network | Pending | Spec 4.6 offline client download |
+| Documents | Open HTML and PDF with SR | Headings, reading order, links, tables, alt text, language | Pending | Spec 4.7 document viewer |
+| Career card | Navigate by keyboard and SR, play summary, open verification | Usable and understandable | Pending | Spec 7 career gateway |
+| 200% zoom | Zoom to 200% | No loss of content or function, no horizontal scroll | Pass | Controls wrap with `flex-wrap: wrap`, no fixed container widths |
+| Sound off | Mute device | All information available visually | Pass | Controls convey state via icons and text, not color alone | |
+
 ## Known limitations
 
 | Date | Limitation | Impact | Planned fix |

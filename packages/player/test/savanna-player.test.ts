@@ -95,6 +95,7 @@ beforeEach(() => {
 
 afterEach(() => {
   document.body.innerHTML = '';
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -104,6 +105,10 @@ describe('<savanna-player> integration contract', () => {
   });
 
   it('reads lesson-id and api-base attributes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() => new Promise(() => {})),
+    );
     const player = await mount({
       'lesson-id': 'networking-101',
       'api-base': 'https://api.example',
@@ -158,6 +163,9 @@ describe('<savanna-player> lesson loading (spec 2.3, 4.1)', () => {
     expect(player.lesson?.id).toBe('networking-101');
     expect(events.statuses).toEqual(['loading', 'ready']);
     expect(events.errors).toEqual([]);
+
+    const video = player.shadowRoot?.querySelector('video');
+    expect(video?.getAttribute('src')).toBe('https://media.example/video.mp4');
   });
 
   it('exposes a loading state announced to screen readers', async () => {
@@ -303,8 +311,101 @@ describe('<savanna-player> keyboard shortcuts (spec 5.1)', () => {
 });
 
 describe('<savanna-player> video controls (spec 4.1)', () => {
-  it.todo('play/pause, seek, volume, mute, speed and fullscreen use native buttons and inputs');
-  it.todo('every control has an accessible name');
-  it.todo('focus is always visible');
-  it.todo('state is not conveyed by color alone');
+  it('play/pause, seek, volume, mute, speed and fullscreen use native buttons and inputs', async () => {
+    const player = await mount({ 'lesson-id': 'networking-101' });
+
+    const playBtn = player.shadowRoot?.querySelector('button.play-btn');
+    const seekInput = player.shadowRoot?.querySelector('input[type="range"].seek-range');
+    const muteBtn = player.shadowRoot?.querySelector('button.mute-btn');
+    const volumeInput = player.shadowRoot?.querySelector('input[type="range"].volume-range');
+    const speedBtn = player.shadowRoot?.querySelector('button.speed-btn');
+    const fullscreenBtn = player.shadowRoot?.querySelector('button.fullscreen-btn');
+
+    expect(playBtn).toBeInstanceOf(HTMLButtonElement);
+    expect(seekInput).toBeInstanceOf(HTMLInputElement);
+    expect(muteBtn).toBeInstanceOf(HTMLButtonElement);
+    expect(volumeInput).toBeInstanceOf(HTMLInputElement);
+    expect(speedBtn).toBeInstanceOf(HTMLButtonElement);
+    expect(fullscreenBtn).toBeInstanceOf(HTMLButtonElement);
+  });
+
+  it('every control has an accessible name', async () => {
+    const player = await mount({ 'lesson-id': 'networking-101' });
+
+    const controls = player.shadowRoot?.querySelectorAll('button, input');
+    expect(controls && controls.length).toBeGreaterThanOrEqual(6);
+
+    controls?.forEach((ctrl) => {
+      const ariaLabel = ctrl.getAttribute('aria-label');
+      const text = ctrl.textContent?.trim();
+      expect(ariaLabel || text).toBeTruthy();
+    });
+
+    const playBtn = player.shadowRoot?.querySelector('button.play-btn');
+    expect(playBtn?.getAttribute('aria-label')).toBe('Play');
+    expect(playBtn?.querySelector('.visually-hidden')?.textContent).toBe('Play');
+
+    const seekInput = player.shadowRoot?.querySelector('input.seek-range');
+    expect(seekInput?.getAttribute('aria-label')).toBe('Seek');
+
+    const muteBtn = player.shadowRoot?.querySelector('button.mute-btn');
+    expect(muteBtn?.getAttribute('aria-label')).toBe('Mute');
+    expect(muteBtn?.querySelector('.visually-hidden')?.textContent).toBe('Mute');
+
+    const volumeInput = player.shadowRoot?.querySelector('input.volume-range');
+    expect(volumeInput?.getAttribute('aria-label')).toBe('Volume');
+
+    const speedBtn = player.shadowRoot?.querySelector('button.speed-btn');
+    expect(speedBtn?.getAttribute('aria-label')).toBe('Playback speed: 1x');
+    expect(speedBtn?.querySelector('.visually-hidden')?.textContent).toContain('Playback speed');
+
+    const fullscreenBtn = player.shadowRoot?.querySelector('button.fullscreen-btn');
+    expect(fullscreenBtn?.getAttribute('aria-label')).toBe('Fullscreen');
+    expect(fullscreenBtn?.querySelector('.visually-hidden')?.textContent).toBe('Fullscreen');
+  });
+
+  it('focus is always visible', async () => {
+    const styles = SavannaPlayer.styles.toString();
+    expect(styles).toContain(':focus-visible');
+    expect(styles).toContain('outline');
+    expect(styles).toContain('outline-offset');
+  });
+
+  it('state is not conveyed by color alone', async () => {
+    const player = await mount({ 'lesson-id': 'networking-101' });
+
+    const playBtn = player.shadowRoot?.querySelector('button.play-btn') as HTMLButtonElement;
+    expect(playBtn.getAttribute('aria-label')).toBe('Play');
+    expect(playBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('▶');
+    expect(playBtn.querySelector('.visually-hidden')?.textContent).toBe('Play');
+
+    // Simulate play
+    await player.togglePlay();
+    await player.updateComplete;
+
+    expect(playBtn.getAttribute('aria-label')).toBe('Pause');
+    expect(playBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('⏸');
+    expect(playBtn.querySelector('.visually-hidden')?.textContent).toBe('Pause');
+
+    // Mute toggle
+    const muteBtn = player.shadowRoot?.querySelector('button.mute-btn') as HTMLButtonElement;
+    expect(muteBtn.getAttribute('aria-label')).toBe('Mute');
+    expect(muteBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('🔊');
+
+    player.toggleMute();
+    await player.updateComplete;
+
+    expect(muteBtn.getAttribute('aria-label')).toBe('Unmute');
+    expect(muteBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('🔇');
+    expect(muteBtn.querySelector('.visually-hidden')?.textContent).toBe('Unmute');
+
+    // Speed cycle
+    const speedBtn = player.shadowRoot?.querySelector('button.speed-btn') as HTMLButtonElement;
+    expect(speedBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('1x');
+    expect(speedBtn.getAttribute('aria-label')).toBe('Playback speed: 1x');
+    player.cyclePlaybackSpeed();
+    await player.updateComplete;
+    expect(speedBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('1.25x');
+    expect(speedBtn.getAttribute('aria-label')).toBe('Playback speed: 1.25x');
+  });
 });
