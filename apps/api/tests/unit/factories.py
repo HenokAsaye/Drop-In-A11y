@@ -36,6 +36,25 @@ def networking_lesson() -> Lesson:
     return lesson
 
 
+def offline_lesson() -> Lesson:
+    """Lesson fixture with audio, both transcripts, captions, offline HTML, and one document."""
+    lesson = networking_lesson()
+    lesson.offline_html_path = "networking-101-offline.html"
+    lesson.transcripts = [
+        Transcript(
+            language="en",
+            label="English",
+            segments=[{"start": 0, "end": 4, "text": "Welcome to our networking lesson."}],
+        ),
+        Transcript(
+            language="am",
+            label="Amharic",
+            segments=[{"start": 0, "end": 4, "text": "እንኳን ወደ ኔትወርክ ትምህርታችን በደህና መጡ።"}],
+        ),
+    ]
+    return lesson
+
+
 def networking_lesson_json() -> dict[str, object]:
     media = "https://media.example.com"
     api = "https://api.example.com"
