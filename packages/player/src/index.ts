@@ -14,5 +14,9 @@ export {
   resolveShortcut,
 } from './accessibility/keyboard-shortcuts';
 export type { PlayerAction } from './accessibility/keyboard-shortcuts';
-export { DEFAULT_CAPTION_SETTINGS } from './captions/caption-settings';
+export {
+  DEFAULT_CAPTION_SETTINGS,
+  loadCaptionSettings,
+  saveCaptionSettings,
+} from './captions/caption-settings';
 export type { CaptionSettings } from './captions/caption-settings';
