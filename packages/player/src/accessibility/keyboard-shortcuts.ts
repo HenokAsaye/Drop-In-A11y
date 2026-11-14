@@ -20,11 +20,7 @@ export const KEYBOARD_SHORTCUTS: Readonly<Record<string, PlayerAction>> = Object
   F: 'toggle-fullscreen',
 });
 
-/** One Left or Right press seeks by this many seconds. */
-export const SEEK_STEP_SECONDS = 5;
-
-/** One Up or Down press changes volume by this fraction of the full range (10%). */
-export const VOLUME_STEP = 0.1;
+export { SEEK_STEP_SECONDS, VOLUME_STEP } from '../config';
 
 const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
