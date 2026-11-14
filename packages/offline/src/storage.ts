@@ -58,14 +58,14 @@ export class OfflineStorage {
   }
 
   list(): Promise<StoredLesson[]> {
-    throw new Error('Not implemented: OfflineStorage.list');
+    return this.run('readonly', (store) => store.getAll());
   }
 
   async put(lesson: StoredLesson): Promise<void> {
     await this.run('readwrite', (store) => store.put(lesson));
   }
 
-  delete(_lessonId: string): Promise<void> {
-    throw new Error('Not implemented: OfflineStorage.delete');
+  async delete(lessonId: string): Promise<void> {
+    await this.run('readwrite', (store) => store.delete(lessonId));
   }
 }

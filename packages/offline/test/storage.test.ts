@@ -23,8 +23,33 @@ describe('offline storage (spec 4.6)', () => {
     expect(await storage.get('networking-101')).toEqual(lesson);
   });
 
-  it.todo('lists downloaded lessons with their size and mode');
-  it.todo('deleting a lesson removes its IndexedDB entry and Cache API files');
+  it('lists downloaded lessons with their size and mode', async () => {
+    const storage = new OfflineStorage('test-db-list');
+    expect(await storage.list()).toEqual([]);
+    await storage.put(lesson);
+    await storage.put({ ...lesson, lessonId: 'html-101', mode: 'text', sizeBytes: 512 });
+    const listed = await storage.list();
+    expect(listed.map((item) => [item.lessonId, item.mode, item.sizeBytes]).sort()).toEqual([
+      ['html-101', 'text', 512],
+      ['networking-101', 'audio', 4096],
+    ]);
+  });
+
+  it('replaces the entry when the same lesson is stored again', async () => {
+    const storage = new OfflineStorage('test-db-replace');
+    await storage.put(lesson);
+    await storage.put({ ...lesson, version: 'v2' });
+    expect(await storage.list()).toHaveLength(1);
+    expect((await storage.get('networking-101'))?.version).toBe('v2');
+  });
+
+  it('deleting a lesson removes its IndexedDB entry', async () => {
+    const storage = new OfflineStorage('test-db-delete');
+    await storage.put(lesson);
+    await storage.delete('networking-101');
+    expect(await storage.get('networking-101')).toBeUndefined();
+    expect(await storage.list()).toEqual([]);
+  });
 });
 
 describe('download manager (spec 4.6)', () => {
