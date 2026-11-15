@@ -1,17 +1,48 @@
 # Savanna BridgePlayer
 
-An embeddable accessibility plugin that adds accessible video, English and Amharic captions,
-Ethiopian Sign Language interpretation, audio description, synchronized transcripts, offline
-resources, accessible documents and career cards to **existing** learning websites.
+**Accessible learning, dropped into any website with one script tag.**
+
+Savanna BridgePlayer is an embeddable plugin that adds accessible video, English and Amharic
+captions, Ethiopian Sign Language interpretation, audio description, synchronized transcripts,
+offline lessons, accessible documents and career cards to **existing** learning websites. The host
+site keeps its own stack; the plugin is a single Web Component.
 
 ```html
 <script src="https://cdn.example.com/bridge-player.js" defer></script>
 <savanna-player lesson-id="networking-101" api-base="https://api.example.com"></savanna-player>
 ```
 
-> **Status: skeleton.** The architecture, contracts, tooling, CI/CD and test harness are in place.
-> Feature code is stubbed (`Not implemented`) and API endpoints return `501` until implemented.
-> Pending behaviour is tracked as `it.todo` / `test.fixme` / strict `xfail` tests.
+[Architecture](#architecture) · [Getting started](#getting-started) · [Accessibility](#accessibility) ·
+[Documentation](#documentation)
+
+## Features
+
+| Area               | What learners get                                                             |
+| ------------------ | ----------------------------------------------------------------------------- |
+| Video controls     | Native buttons and sliders, full keyboard use, shortcuts that never fire while typing |
+| Captions           | English and Amharic, adjustable size and colors, high-contrast mode           |
+| Sign language      | Ethiopian Sign Language window that can be shown, moved and resized by keyboard or pointer |
+| Audio description  | Optional prerecorded description track kept in sync with the lesson           |
+| Transcript         | Follows playback, click or Enter on a sentence to seek, search, bookmarks, download |
+| Offline            | Download audio, text or everything; works after disconnecting                 |
+| Documents          | Lesson notes as accessible HTML and a tagged PDF                              |
+| Career gateway     | Job cards with audio summaries, accommodations, filters and certificate verification |
+
+## Accessibility
+
+The target is WCAG 2.2 AA. Automated checks do not prove that, so the project keeps both kinds of
+evidence:
+
+- **Automated:** `eslint-plugin-lit-a11y` on every template, unit tests for roles and keyboard
+  behaviour, and Playwright with axe-core on the full player. The build fails on any critical or
+  serious violation.
+- **Manual:** keyboard, NVDA, TalkBack, 200% zoom, sound off and offline sessions are recorded in
+  [`manual-test-record.md`](docs/testing/manual-test-record.md), including failures and known
+  limitations. The latest full session is prepared but not yet run, and the record says so.
+
+Lesson media (video, captions, sign-language interpretation, audio description) must be prepared and
+reviewed by people. None of it is generated automatically, and the repository does not contain the
+large media files; see [`assets/README.md`](assets/README.md).
 
 ## Architecture
 
