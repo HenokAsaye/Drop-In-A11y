@@ -138,6 +138,21 @@ describe('keyboard shortcuts (spec 5.1)', () => {
     expect(outsidePress.event.defaultPrevented).toBe(false);
   });
 
+  it('leaves Space to a link so the document can open', () => {
+    const player = document.createElement('div');
+    const shadow = player.attachShadow({ mode: 'open' });
+    const link = document.createElement('a');
+    link.href = 'https://media.example/networking-101-notes.html';
+    link.textContent = 'Networking Notes, HTML';
+    shadow.append(link);
+    document.body.append(player);
+
+    const { action, event } = press(link, player, { key: ' ' });
+
+    expect(action).toBeNull();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it('leaves unrelated keys to the browser', () => {
     const player = document.createElement('div');
     document.body.append(player);
