@@ -42,6 +42,9 @@ export const PLAYBACK_SETTINGS_KEY = 'savanna.playbackSettings';
 /** Last playback position, keyed by lesson id, on this device only. */
 export const LESSON_POSITIONS_KEY = 'savanna.lessonPositions';
 
+/** Sentence bookmarks, keyed by lesson id and transcript language, on this device only. */
+export const LESSON_BOOKMARKS_KEY = 'savanna.lessonBookmarks';
+
 export const CAPTION_FONT_FAMILY =
   '"Noto Sans Ethiopic", "Abyssinica SIL", "Nyala", "Ebrima", sans-serif';
 

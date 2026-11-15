@@ -8,6 +8,7 @@ from app.models import Lesson
 from app.repositories.lessons import LessonRepository
 from app.schemas.lesson import (
     CaptionTrackOut,
+    Chapter,
     LessonDocumentOut,
     LessonOut,
     MediaSources,
@@ -159,6 +160,7 @@ class LessonService:
                 }
                 for d in sorted(lesson.documents, key=lambda d: (d.position, d.title))
             ],
+            "chapters": lesson.chapters,
         }
         encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()[:16]
@@ -201,6 +203,7 @@ class LessonService:
                 )
                 for document in lesson.documents
             ],
+            chapters=[Chapter.model_validate(chapter) for chapter in lesson.chapters or []],
         )
 
     def _transcript_url(self, lesson_id: str, language: str) -> str:

@@ -89,6 +89,7 @@ async function mount(lesson: {
     captions: [],
     transcripts: [],
     documents: lesson.documents,
+    chapters: [],
   };
   player.lesson = loaded;
   await player.updateComplete;

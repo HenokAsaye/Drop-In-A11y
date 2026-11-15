@@ -64,6 +64,29 @@ async def amharic_client(tmp_path: Path) -> AsyncIterator[AsyncClient]:
         yield client
 
 
+async def test_lesson_returns_stored_chapters(tmp_path: Path) -> None:
+    lesson = networking_lesson()
+    lesson.chapters = [
+        {"name": "Welcome", "start": 0},
+        {"name": "How computers connect", "start": 45},
+    ]
+    async with _lesson_client(tmp_path, lesson) as client:
+        response = await client.get("/api/v1/lessons/networking-101")
+
+    assert response.status_code == 200
+    assert response.json()["chapters"] == [
+        {"name": "Welcome", "start": 0.0},
+        {"name": "How computers connect", "start": 45.0},
+    ]
+
+
+async def test_lesson_without_chapters_returns_an_empty_list(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/lessons/networking-101")
+
+    assert response.status_code == 200
+    assert response.json()["chapters"] == []
+
+
 async def test_get_lesson_returns_documented_shape(client: AsyncClient) -> None:
     response = await client.get("/api/v1/lessons/networking-101")
 
