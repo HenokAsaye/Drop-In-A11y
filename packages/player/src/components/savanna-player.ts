@@ -1457,7 +1457,6 @@ export class SavannaPlayer extends LitElement {
             ? nothing
             : html`<p class="transcript-status" role="status">${this.transcriptMessage}</p>`
         }
->>>>>>> Stashed changes
         ${renderLessonDocuments(this.documentLinks, undefined, this.lang)}
         ${this.renderCaptionControls()} ${this.renderOfflineControls()}
       </section>
