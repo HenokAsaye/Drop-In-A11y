@@ -58,6 +58,12 @@ import {
   savePlaybackSettings,
   withTimestamp,
 } from '../playback/playback-memory';
+import {
+  FORCED_COLORS_QUERY,
+  REDUCED_MOTION_QUERY,
+  mediaMatches,
+  watchMedia,
+} from '../media-preferences';
 import { SIGN_LANGUAGE_TAG, type SignLanguageWindow } from '../sign-language/sign-language-window';
 import { transcriptDocument, transcriptFilename } from '../transcript/transcript-export';
 import '../transcript/transcript-panel';
@@ -131,6 +137,7 @@ export class SavannaPlayer extends LitElement {
     lessonId: { type: String, attribute: 'lesson-id', reflect: true },
     apiBase: { type: String, attribute: 'api-base', reflect: true },
     captionLanguage: { type: String, attribute: 'caption-language' },
+    reducedMotion: { type: Boolean, reflect: true, attribute: 'reduced-motion' },
     swUrl: { type: String, attribute: 'sw-url' },
     status: { state: true },
     lesson: { state: true },
@@ -271,6 +278,13 @@ export class SavannaPlayer extends LitElement {
     .shortcut-help ul {
       margin: 0;
       padding-left: 1.25rem;
+    }
+
+    :host([reduced-motion]),
+    :host([reduced-motion]) * {
+      scroll-behavior: auto !important;
+      transition: none !important;
+      animation: none !important;
     }
 
     .seek-container {
@@ -562,6 +576,7 @@ export class SavannaPlayer extends LitElement {
   declare transcriptExportMessage: string;
   declare textLessonOpen: boolean;
   declare shortcutHelpOpen: boolean;
+  declare reducedMotion: boolean;
 
   private abortController: AbortController | null = null;
   private requestId = 0;
@@ -587,6 +602,7 @@ export class SavannaPlayer extends LitElement {
   private signLanguageDetach: (() => void) | null = null;
   private audioDescription: AudioDescriptionTrack | null = null;
   private documentLinks: LessonDocumentLink[] = [];
+  private mediaUnsubscribers: Array<() => void> = [];
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const action = resolveShortcut(event, this);
@@ -623,6 +639,7 @@ export class SavannaPlayer extends LitElement {
     this.lessonId = '';
     this.apiBase = '';
     this.captionLanguage = 'en';
+    this.reducedMotion = false;
     this.swUrl = '/savanna-sw.js';
     this.status = 'idle';
     this.lesson = null;
@@ -673,6 +690,7 @@ export class SavannaPlayer extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.bindMediaPreferences();
     this.addEventListener('keydown', this.onKeyDown);
     document.addEventListener('fullscreenchange', this.handleFullscreenChange);
     if (this.connectedOnce) this.beginLoad();
@@ -680,6 +698,7 @@ export class SavannaPlayer extends LitElement {
   }
 
   override disconnectedCallback(): void {
+    this.releaseMediaPreferences();
     this.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
     this.releaseAudioDescription();
@@ -692,6 +711,30 @@ export class SavannaPlayer extends LitElement {
     this.abortController = null;
     this.transcriptRequestId += 1;
     super.disconnectedCallback();
+  }
+
+  private bindMediaPreferences(): void {
+    this.reducedMotion = mediaMatches(REDUCED_MOTION_QUERY);
+    this.mediaUnsubscribers.push(
+      watchMedia(FORCED_COLORS_QUERY, (matches) => this.applyForcedColors(matches)),
+      watchMedia(REDUCED_MOTION_QUERY, (matches) => {
+        this.reducedMotion = matches;
+      }),
+    );
+  }
+
+  private releaseMediaPreferences(): void {
+    for (const unsubscribe of this.mediaUnsubscribers) unsubscribe();
+    this.mediaUnsubscribers = [];
+  }
+
+  private applyForcedColors(matches: boolean): void {
+    if (!this.captionPreferencesLoaded || this.captionChoiceStored) return;
+    if (this.captionSettings.highContrast === matches) return;
+    this.captionSettings = sanitizeCaptionSettings({
+      ...this.captionSettings,
+      highContrast: matches,
+    });
   }
 
   private handleFullscreenChange = (): void => {
@@ -1048,6 +1091,7 @@ export class SavannaPlayer extends LitElement {
           ></video>
           <savanna-sign-language
             .src=${signLanguageSource}
+            ?reduced-motion=${this.reducedMotion}
             ?open=${this.signLanguageOpen}
             @savanna-sign-language-close=${this.handleSignLanguageClose}
           ></savanna-sign-language>
@@ -1216,6 +1260,7 @@ export class SavannaPlayer extends LitElement {
                 .segments=${this.transcriptSegments}
                 .currentTime=${this.currentTime}
                 .language=${this.transcriptLanguage}
+                ?reduced-motion=${this.reducedMotion}
                 @savanna-transcript-seek=${this.onTranscriptSeek}
                 @savanna-transcript-language=${this.onTranscriptLanguage}
                 @savanna-transcript-bookmark=${this.onTranscriptBookmark}
@@ -1679,12 +1724,12 @@ export class SavannaPlayer extends LitElement {
       this.captionPreferencesLoaded = true;
       const stored = readStoredCaptionSettings();
       this.captionChoiceStored = stored !== null;
-      this.captionSettings = sanitizeCaptionSettings(
-        stored ?? {
-          ...DEFAULT_CAPTION_SETTINGS,
-          language: this.captionLanguage || DEFAULT_CAPTION_SETTINGS.language,
-        },
-      );
+      const defaults = {
+        ...DEFAULT_CAPTION_SETTINGS,
+        language: this.captionLanguage || DEFAULT_CAPTION_SETTINGS.language,
+        highContrast: stored === null && mediaMatches(FORCED_COLORS_QUERY),
+      };
+      this.captionSettings = sanitizeCaptionSettings(stored ?? defaults);
       return;
     }
     if (!this.captionChoiceStored && changed.has('captionLanguage')) {

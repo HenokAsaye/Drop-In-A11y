@@ -1,6 +1,7 @@
 import type { TranscriptSegment } from '@savanna/contracts';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 
+import { REDUCED_MOTION_QUERY, mediaMatches, watchMedia } from '../media-preferences';
 import { findActiveSegment, searchSegments } from './transcript-sync';
 
 export const TRANSCRIPT_TAG = 'savanna-transcript';
@@ -25,6 +26,7 @@ export class TranscriptPanel extends LitElement {
     segments: { attribute: false },
     currentTime: { type: Number, attribute: 'current-time' },
     language: { type: String },
+    reducedMotion: { type: Boolean, reflect: true, attribute: 'reduced-motion' },
     query: { state: true },
     activeIndex: { state: true },
   };
@@ -116,13 +118,23 @@ export class TranscriptPanel extends LitElement {
       background: #0f172a;
       color: #f8fafc;
     }
+
+    :host([reduced-motion]),
+    :host([reduced-motion]) * {
+      scroll-behavior: auto !important;
+      transition: none !important;
+      animation: none !important;
+    }
   `;
 
   declare segments: TranscriptSegment[];
   declare currentTime: number;
   declare language: string;
+  declare reducedMotion: boolean;
   declare query: string;
   declare activeIndex: number;
+
+  private unwatchMotion: (() => void) | null = null;
 
   private scrollPaused = false;
   private scrollIdleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -134,11 +146,22 @@ export class TranscriptPanel extends LitElement {
     this.segments = [];
     this.currentTime = 0;
     this.language = 'en';
+    this.reducedMotion = false;
     this.query = '';
     this.activeIndex = -1;
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.reducedMotion = mediaMatches(REDUCED_MOTION_QUERY);
+    this.unwatchMotion = watchMedia(REDUCED_MOTION_QUERY, (matches) => {
+      this.reducedMotion = matches;
+    });
+  }
+
   override disconnectedCallback(): void {
+    this.unwatchMotion?.();
+    this.unwatchMotion = null;
     this.clearScrollIdle();
     super.disconnectedCallback();
   }

@@ -1,5 +1,7 @@
 import { LitElement, css, html } from 'lit';
 
+import { REDUCED_MOTION_QUERY, mediaMatches, watchMedia } from '../media-preferences';
+
 export const SIGN_LANGUAGE_TAG = 'savanna-sign-language';
 
 const DEFAULT_WIDTH = 200;
@@ -18,6 +20,7 @@ export class SignLanguageWindow extends LitElement {
     y: { type: Number },
     width: { type: Number },
     height: { type: Number },
+    reducedMotion: { type: Boolean, reflect: true, attribute: 'reduced-motion' },
   };
 
   static override styles = css`
@@ -164,6 +167,13 @@ export class SignLanguageWindow extends LitElement {
       white-space: nowrap;
       border: 0;
     }
+
+    :host([reduced-motion]),
+    :host([reduced-motion]) * {
+      scroll-behavior: auto !important;
+      transition: none !important;
+      animation: none !important;
+    }
   `;
 
   declare src: string;
@@ -172,6 +182,9 @@ export class SignLanguageWindow extends LitElement {
   declare y: number;
   declare width: number;
   declare height: number;
+  declare reducedMotion: boolean;
+
+  private unwatchMotion: (() => void) | null = null;
 
   private isDragging = false;
   private isResizing = false;
@@ -190,6 +203,7 @@ export class SignLanguageWindow extends LitElement {
     this.height = DEFAULT_HEIGHT;
     this.x = 0;
     this.y = 0;
+    this.reducedMotion = false;
   }
 
   get videoElement(): HTMLVideoElement | null {
@@ -198,11 +212,17 @@ export class SignLanguageWindow extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.reducedMotion = mediaMatches(REDUCED_MOTION_QUERY);
+    this.unwatchMotion = watchMedia(REDUCED_MOTION_QUERY, (matches) => {
+      this.reducedMotion = matches;
+    });
     this.ensureInBounds();
     window.addEventListener('resize', this.handleWindowResize);
   }
 
   override disconnectedCallback(): void {
+    this.unwatchMotion?.();
+    this.unwatchMotion = null;
     window.removeEventListener('resize', this.handleWindowResize);
     super.disconnectedCallback();
   }
