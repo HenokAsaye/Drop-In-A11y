@@ -26,6 +26,7 @@ function lessonBody(): Lesson {
         pdf: null,
       },
     ],
+    chapters: [],
   };
 }
 

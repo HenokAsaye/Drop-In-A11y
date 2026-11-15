@@ -16,6 +16,11 @@ export interface TranscriptLanguageDetail {
   language: 'en' | 'am';
 }
 
+export interface TranscriptBookmarkDetail {
+  start: number;
+  text: string;
+}
+
 /** Searchable, synchronized transcript. Clicking a segment asks the player to seek. */
 export class TranscriptPanel extends LitElement {
   static override properties = {
@@ -57,6 +62,26 @@ export class TranscriptPanel extends LitElement {
       flex-direction: column;
       max-height: 16rem;
       overflow: auto;
+      min-width: 0;
+    }
+
+    .segment-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      min-width: 0;
+    }
+
+    .sentence {
+      flex: 1 1 12rem;
+      min-width: 0;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .bookmark-sentence {
+      flex: 0 1 auto;
+      white-space: normal;
     }
 
     label {
@@ -199,16 +224,31 @@ export class TranscriptPanel extends LitElement {
             if (segment === undefined) return nothing;
             const active = index === this.activeIndex;
             return html`
-              <button
-                type="button"
-                part="focus-ring"
-                data-index=${index}
-                lang=${language}
-                aria-current=${active ? 'true' : nothing}
-                @click=${() => this.choose(segment)}
-              >
-                ${segment.text}
-              </button>
+              <div class="segment-row">
+                <button
+                  type="button"
+                  class="sentence"
+                  part="focus-ring"
+                  data-index=${index}
+                  lang=${language}
+                  aria-current=${active ? 'true' : nothing}
+                  @click=${() => this.choose(segment)}
+                >
+                  ${segment.text}
+                </button>
+                <button
+                  type="button"
+                  class="bookmark-sentence"
+                  part="focus-ring"
+                  lang=${language}
+                  aria-label=${interfaceText(this.interfaceLang, 'bookmarkSentence', {
+                    text: segment.text,
+                  })}
+                  @click=${() => this.bookmark(segment)}
+                >
+                  ${interfaceText(this.interfaceLang, 'bookmark')}
+                </button>
+              </div>
             `;
           })}
         </div>
@@ -246,6 +286,16 @@ export class TranscriptPanel extends LitElement {
       this.scrollPaused = false;
       this.scrollActiveIntoView();
     }, TRANSCRIPT_SCROLL_IDLE_MS);
+  }
+
+  private bookmark(segment: TranscriptSegment): void {
+    this.dispatchEvent(
+      new CustomEvent<TranscriptBookmarkDetail>('savanna-transcript-bookmark', {
+        detail: { start: segment.start, text: segment.text },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private choose(segment: TranscriptSegment): void {

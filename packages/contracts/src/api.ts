@@ -9,6 +9,7 @@ export type TranscriptRef = Schemas['TranscriptRef'];
 export type Transcript = Schemas['TranscriptOut'];
 export type TranscriptSegment = Schemas['TranscriptSegment'];
 export type LessonDocument = Schemas['LessonDocumentOut'];
+export type Chapter = Schemas['Chapter'];
 export type OfflinePackage = Schemas['OfflinePackageOut'];
 export type OfflineResource = Schemas['OfflineResource'];
 export type Career = Schemas['CareerOut'];

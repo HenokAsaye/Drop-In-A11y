@@ -237,6 +237,19 @@ export interface components {
             /** Valid */
             valid: boolean;
         };
+        /**
+         * Chapter
+         * @description A named point in the lesson. Chapters do not have an end time.
+         */
+        Chapter: {
+            /** Name */
+            name: string;
+            /**
+             * Start
+             * @description Chapter start time in seconds
+             */
+            start: number;
+        };
         /** ErrorResponse */
         ErrorResponse: {
             /** Code */
@@ -278,6 +291,8 @@ export interface components {
         LessonOut: {
             /** Captions */
             captions: components["schemas"]["CaptionTrackOut"][];
+            /** Chapters */
+            chapters: components["schemas"]["Chapter"][];
             /** Description */
             description: string;
             /** Documents */
