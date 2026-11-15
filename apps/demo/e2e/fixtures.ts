@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 
 /** Eight seconds of silent WebM, small enough to commit. Chromium plays it without codecs. */
 const VIDEO = readFileSync(fileURLToPath(new URL('./fixtures/lesson.webm', import.meta.url)));
@@ -42,8 +42,28 @@ export const LESSON = {
 
 /** Answer every API and media request the lesson makes, so the suite needs no running API. */
 export async function mockLesson(page: Page, lesson: object = LESSON): Promise<void> {
-  const media = (route: { fulfill: (o: object) => Promise<void> }) =>
-    route.fulfill({ body: VIDEO, contentType: 'video/webm' });
+  // Chromium only treats media as seekable when the server honours byte ranges.
+  const media = (route: Route) => {
+    const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers()['range'] ?? '');
+    if (range === null) {
+      return route.fulfill({
+        body: VIDEO,
+        headers: { 'accept-ranges': 'bytes' },
+        contentType: 'video/webm',
+      });
+    }
+    const start = Number(range[1]);
+    const end = range[2] === '' ? VIDEO.length - 1 : Math.min(Number(range[2]), VIDEO.length - 1);
+    return route.fulfill({
+      status: 206,
+      body: VIDEO.subarray(start, end + 1),
+      headers: {
+        'accept-ranges': 'bytes',
+        'content-range': `bytes ${start}-${end}/${VIDEO.length}`,
+      },
+      contentType: 'video/webm',
+    });
+  };
   await page.route('**/test-media/*.webm', media);
 
   await page.route(/\/api\/v1\/lessons\/networking-101(\?.*)?$/, (route) =>

@@ -30,7 +30,24 @@ test.describe('script-tag integration (spec 3, 11.1)', () => {
     await expect(page.locator('savanna-player')).toHaveAttribute('lesson-id', 'networking-101');
     expect(requested).toContain('/api/v1/lessons/networking-101');
   });
-  test.fixme('video playback works', async () => {});
+  test('video playback works', async ({ page }) => {
+    await mockLesson(page);
+    await page.goto('/');
+
+    const video = page.locator('savanna-player video.lesson-video');
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState))
+      .toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
+      .toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    expect(await video.evaluate((el: HTMLVideoElement) => el.paused)).toBe(true);
+  });
 
   test('switching between English and Amharic captions', async ({ page }) => {
     await page.goto('/');
@@ -62,5 +79,18 @@ test.describe('script-tag integration (spec 3, 11.1)', () => {
   });
 
   test.fixme('sign-language window can be shown, moved and resized', async () => {});
-  test.fixme('clicking a transcript sentence seeks the video', async () => {});
+  test('clicking a transcript sentence seeks the video', async ({ page }) => {
+    await mockLesson(page);
+    await page.goto('/');
+
+    const video = page.locator('savanna-player video.lesson-video');
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState))
+      .toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Every device has an address.', exact: true }).click();
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
+      .toBeCloseTo(4, 0);
+  });
 });
