@@ -18,6 +18,14 @@ def test_absolute_media_url_passes_through(urls: UrlBuilder) -> None:
     assert urls.media("https://cdn.example/a.mp4") == "https://cdn.example/a.mp4"
 
 
+@pytest.mark.parametrize(
+    "stored",
+    ["javascript:alert(1)", "JavaScript:alert(1)", "data:text/html,<script>", "file:///etc/hosts"],
+)
+def test_non_web_media_url_is_dropped(urls: UrlBuilder, stored: str) -> None:
+    assert urls.media(stored) is None
+
+
 def test_missing_media_path_stays_missing(urls: UrlBuilder) -> None:
     assert urls.media(None) is None
 
