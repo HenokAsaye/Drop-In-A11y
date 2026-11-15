@@ -36,7 +36,12 @@ import {
   type CaptionSettings,
 } from '../config';
 import { AudioDescriptionTrack } from '../audio-description/audio-description-track';
-import { lessonDocumentLinks } from '../documents/lesson-documents';
+import {
+  lessonDocumentLinks,
+  lessonDocumentStyles,
+  renderLessonDocuments,
+  type LessonDocumentLink,
+} from '../documents/lesson-documents';
 import { MediaController } from '../media/media-controller';
 import { MediaSync } from '../media/media-sync';
 import { SIGN_LANGUAGE_TAG, type SignLanguageWindow } from '../sign-language/sign-language-window';
@@ -338,48 +343,7 @@ export class SavannaPlayer extends LitElement {
       cursor: pointer;
     }
 
-    .lesson-documents {
-      margin: 0;
-      padding: 0.75rem 0.5rem;
-      border-top: 1px solid rgba(148, 163, 184, 0.4);
-      background: rgba(15, 23, 42, 0.95);
-      color: #f8fafc;
-      min-width: 0;
-    }
-
-    .lesson-documents h2 {
-      margin: 0 0 0.5rem;
-      font-size: 0.875rem;
-      font-weight: 600;
-      line-height: 1.4;
-    }
-
-    .lesson-documents ul {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      min-width: 0;
-    }
-
-    .lesson-documents li {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.25rem 1rem;
-      min-width: 0;
-    }
-
-    .lesson-documents a {
-      display: inline-flex;
-      align-items: center;
-      min-height: 2.5rem;
-      min-width: 0;
-      color: #f8fafc;
-      overflow-wrap: anywhere;
-      text-underline-offset: 0.15em;
-    }
+    ${lessonDocumentStyles}
   `;
 
   declare lessonId: string;
@@ -422,6 +386,7 @@ export class SavannaPlayer extends LitElement {
   private mediaSync: MediaSync | null = null;
   private signLanguageDetach: (() => void) | null = null;
   private audioDescription: AudioDescriptionTrack | null = null;
+  private documentLinks: LessonDocumentLink[] = [];
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const action = resolveShortcut(event, this);
@@ -530,6 +495,7 @@ export class SavannaPlayer extends LitElement {
     this.restoreCaptionSettings(changed);
     if (changed.has('lesson')) {
       this.signLanguageSrc = this.lesson?.media?.signLanguage ?? this.signLanguageSrc;
+      this.documentLinks = lessonDocumentLinks(this.lesson?.documents, document.baseURI);
     }
     if (changed.has('lessonId') || changed.has('apiBase')) this.beginLoad();
     const transcriptInputChanged =
@@ -954,7 +920,8 @@ export class SavannaPlayer extends LitElement {
               ></savanna-transcript>`
             : nothing
         }
-        ${this.renderDocuments()} ${this.renderCaptionControls()} ${this.renderOfflineControls()}
+        ${renderLessonDocuments(this.documentLinks)} ${this.renderCaptionControls()}
+        ${this.renderOfflineControls()}
       </section>
     `;
   }
@@ -972,35 +939,6 @@ export class SavannaPlayer extends LitElement {
     if (language === this.transcriptLanguage) return;
     this.transcriptLanguage = language;
   };
-
-  private renderDocuments() {
-    const links = lessonDocumentLinks(this.lesson?.documents, documentBaseHref());
-    if (links.length === 0) return nothing;
-    return html`
-      <nav class="lesson-documents" aria-labelledby="lesson-documents-heading">
-        <h2 id="lesson-documents-heading">Lesson documents</h2>
-        <ul>
-          ${links.map((document) => {
-            const language = document.language === '' ? nothing : document.language;
-            return html`
-              <li>
-                ${
-                  document.html
-                    ? html`<a href=${document.html} lang=${language}>${document.title}, HTML</a>`
-                    : nothing
-                }
-                ${
-                  document.pdf
-                    ? html`<a href=${document.pdf} lang=${language}>${document.title}, PDF</a>`
-                    : nothing
-                }
-              </li>
-            `;
-          })}
-        </ul>
-      </nav>
-    `;
-  }
 
   private renderCaptionControls() {
     const settings = this.captionSettings;
@@ -1274,16 +1212,6 @@ export class SavannaPlayer extends LitElement {
       language === this.transcriptLanguage
     );
   }
-}
-
-function documentBaseHref(): string {
-  try {
-    const base = new URL(document.baseURI);
-    if (base.protocol === 'http:' || base.protocol === 'https:') return base.href;
-  } catch {
-    return 'http://localhost/';
-  }
-  return 'http://localhost/';
 }
 
 function transcriptLanguageOf(value: string): 'en' | 'am' {
