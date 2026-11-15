@@ -22,8 +22,6 @@ class Lesson(TimestampMixin, Base):
     audio_description_path: Mapped[str | None] = mapped_column(String(512))
     poster_path: Mapped[str | None] = mapped_column(String(512))
     offline_html_path: Mapped[str | None] = mapped_column(String(512))
-    # [{"name": str, "start": float}, ...] in display order. Empty for lessons without chapters.
-    chapters: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
 
     captions: Mapped[list["CaptionTrack"]] = relationship(
         back_populates="lesson", cascade="all, delete-orphan", order_by="CaptionTrack.id"
