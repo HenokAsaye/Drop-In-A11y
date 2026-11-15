@@ -7,21 +7,21 @@ From specification section 11. "Verified by" names the automated test that prove
 
 | # | Criterion | Verified by | Status |
 |---|-----------|-------------|--------|
-| F1 | Another website can install the plugin using a script tag | `e2e/embed.spec.ts` — host page loads the plugin | ☑ (skeleton) |
-| F2 | The plugin loads a lesson from the API | `e2e/embed.spec.ts`, `player/test/savanna-player.test.ts` | ☐ |
-| F3 | Video playback works | `e2e/embed.spec.ts` | ☐ |
+| F1 | Another website can install the plugin using a script tag | `e2e/embed.spec.ts` — host page loads the plugin | ☑ |
+| F2 | The plugin loads a lesson from the API | `e2e/embed.spec.ts`, `player/test/savanna-player.test.ts` | ☑ |
+| F3 | Video playback works | `e2e/embed.spec.ts` | ☑ |
 | F4 | English captions work | `player/test/captions.test.ts`, e2e | ☐ |
 | F5 | Amharic captions work | `player/test/captions.test.ts`, e2e | ☐ |
 | F6 | Caption size and colors can be adjusted | `player/test/captions.test.ts`, e2e | ☐ |
-| F7 | Sign-language video can be shown, moved and resized | `player/test/media-sync.test.ts`, e2e | ☐ |
+| F7 | Sign-language video can be shown, moved and resized | `player/test/media-sync.test.ts`, e2e | ☑ |
 | F8 | Sign-language playback follows the main video | `player/test/media-sync.test.ts` | ☐ |
 | F9 | Audio description can be enabled | `player/test/media-sync.test.ts` | ☐ |
 | F10 | Transcript highlights the current sentence | `player/test/transcript.test.ts` | ☐ |
-| F11 | Clicking a transcript sentence seeks the video | `player/test/transcript.test.ts`, e2e | ☐ |
+| F11 | Clicking a transcript sentence seeks the video | `player/test/transcript.test.ts`, e2e | ☑ |
 | F12 | Audio and text resources can be downloaded | `offline/test/storage.test.ts` | ☐ |
 | F13 | Downloaded resources work offline | `e2e/accessibility.spec.ts` (offline), Manual | ☐ |
 | F14 | Accessible HTML and tagged PDF resources are available | API `documents` endpoint, Manual (PAC / NVDA) | ☐ |
-| F15 | Career cards work at 200% zoom | `e2e/accessibility.spec.ts`, Manual | ☐ |
+| F15 | Career cards work at 200% zoom | `e2e/accessibility.spec.ts`, Manual | ☑ e2e · ☐ manual |
 | F16 | Career audio summaries work | `career/test/career.test.ts` | ☐ |
 | F17 | Certificate verification links work | `career/test/career.test.ts`, API verify endpoint | ☐ |
 
@@ -29,17 +29,22 @@ From specification section 11. "Verified by" names the automated test that prove
 
 | # | Criterion | Verified by | Status |
 |---|-----------|-------------|--------|
-| A1 | All interactive controls work using a keyboard | e2e keyboard test, Manual | ☐ |
+| A1 | All interactive controls work using a keyboard | e2e keyboard test, Manual | ☑ e2e · ☐ manual |
 | A2 | Keyboard focus is always visible | Manual, `player/test/savanna-player.test.ts` | ☐ |
 | A3 | Screen readers announce controls meaningfully | Manual (NVDA, TalkBack) | ☐ |
-| A4 | There are no keyboard traps | e2e keyboard-trap test, Manual | ☐ |
+| A4 | There are no keyboard traps | e2e keyboard-trap test, Manual | ☑ e2e · ☐ manual |
 | A5 | Captions are readable and customizable | `player/test/captions.test.ts`, Manual | ☐ |
-| A6 | Content remains usable at 200% zoom | e2e zoom test, Manual | ☐ |
+| A6 | Content remains usable at 200% zoom | e2e zoom test, Manual | ☑ e2e · ☐ manual |
 | A7 | The interface works with sound off | Manual | ☐ |
-| A8 | axe-core reports zero critical and serious violations | `e2e/accessibility.spec.ts` | ☑ (skeleton page) |
+| A8 | axe-core reports zero critical and serious violations | `e2e/accessibility.spec.ts` | ☑ |
 | A9 | Manual testing completed with NVDA and other AT | [manual-test-record.md](manual-test-record.md) | ☐ |
 
 ## Demonstration scenario (spec 12)
+
+Run the automated rehearsal with `pnpm build && pnpm test:e2e`. It answers the API and media with
+fixtures, so it needs no running API. To rehearse by hand against the seeded lesson, start the API
+(`pnpm api:dev`, after seeding `networking-101`), set `VITE_SAVANNA_API_BASE` to its URL, and run
+`pnpm dev`.
 
 Rehearse on the demo page with the "Introduction to Computer Networking" lesson:
 
