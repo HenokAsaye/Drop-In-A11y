@@ -156,6 +156,7 @@ export class SavannaPlayer extends LitElement {
     bookmarkMessage: { state: true },
     transcriptExportMessage: { state: true },
     textLessonOpen: { state: true },
+    shortcutHelpOpen: { state: true },
   };
 
   static override styles = css`
@@ -253,6 +254,23 @@ export class SavannaPlayer extends LitElement {
     select:focus-visible {
       outline: 2px solid #38bdf8;
       outline-offset: 2px;
+    }
+
+    .shortcut-help {
+      margin: 0.75rem 0 0;
+      padding: 0.75rem 1rem;
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 8px;
+    }
+
+    .shortcut-help[hidden] {
+      display: none;
+    }
+
+    .shortcut-help ul {
+      margin: 0;
+      padding-left: 1.25rem;
     }
 
     .seek-container {
@@ -543,6 +561,7 @@ export class SavannaPlayer extends LitElement {
   declare bookmarkMessage: string;
   declare transcriptExportMessage: string;
   declare textLessonOpen: boolean;
+  declare shortcutHelpOpen: boolean;
 
   private abortController: AbortController | null = null;
   private requestId = 0;
@@ -629,6 +648,7 @@ export class SavannaPlayer extends LitElement {
     this.bookmarkMessage = '';
     this.transcriptExportMessage = '';
     this.textLessonOpen = false;
+    this.shortcutHelpOpen = false;
   }
 
   get videoElement(): HTMLVideoElement | null {
@@ -1158,6 +1178,36 @@ export class SavannaPlayer extends LitElement {
                 </button>`
               : nothing
           }
+          <button
+            type="button"
+            class="control-btn shortcut-help-btn"
+            aria-expanded=${this.shortcutHelpOpen ? 'true' : 'false'}
+            aria-controls="shortcut-help"
+            @click=${this.toggleShortcutHelp}
+          >
+            Keyboard shortcuts
+          </button>
+        </div>
+        <div
+          id="shortcut-help"
+          class="shortcut-help"
+          role="region"
+          aria-label="Keyboard shortcuts"
+          ?hidden=${!this.shortcutHelpOpen}
+        >
+          <ul>
+            <li>Space plays or pauses. Space activates a focused button.</li>
+            <li>Enter opens a focused link.</li>
+            <li>Left and Right arrows seek backward and forward.</li>
+            <li>Up and Down arrows change the volume.</li>
+            <li>M mutes or unmutes.</li>
+            <li>F enters or leaves fullscreen.</li>
+            <li>
+              When the sign-language move handle is focused, arrow keys move the window, and Shift
+              with an arrow key resizes it. When the resize handle is focused, arrow keys resize the
+              window. Those arrow keys also reach the player shortcuts.
+            </li>
+          </ul>
         </div>
         ${this.status === 'ready' ? this.renderReadingTools() : nothing} ${this.renderChapters()}
         ${
@@ -1191,6 +1241,10 @@ export class SavannaPlayer extends LitElement {
     this.controller?.seekTo(seconds);
     this.noteUserSeek(seconds);
   }
+
+  private toggleShortcutHelp = (): void => {
+    this.shortcutHelpOpen = !this.shortcutHelpOpen;
+  };
 
   private renderReadingTools() {
     return html`
