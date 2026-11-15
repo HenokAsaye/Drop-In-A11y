@@ -26,14 +26,41 @@
 
       <section id="careers" aria-labelledby="careers-heading">
         <h2 id="careers-heading">Career opportunities</h2>
+        <div
+          id="career-filters"
+          class="career-filters"
+          role="group"
+          aria-label="Filter career opportunities"
+          hidden
+        >
+          <div class="career-filter-field">
+            <label for="career-filter-location">Location</label>
+            <select id="career-filter-location" name="location">
+              <option value="">All locations</option>
+            </select>
+          </div>
+          <div class="career-filter-field">
+            <label for="career-filter-accommodations">
+              <input type="checkbox" id="career-filter-accommodations" name="accommodations" />
+              Accommodations offered
+            </label>
+          </div>
+        </div>
         <p id="careers-status" role="status" aria-live="polite">Loading career opportunities.</p>
         <p id="careers-error" role="alert" hidden></p>
+        <div id="career-list" class="career-list"></div>
       </section>
       <script type="module">
         const section = document.getElementById('careers');
         const status = document.getElementById('careers-status');
         const error = document.getElementById('careers-error');
+        const filtersContainer = document.getElementById('career-filters');
+        const locationSelect = document.getElementById('career-filter-location');
+        const accommodationsCheckbox = document.getElementById('career-filter-accommodations');
+        const listContainer = document.getElementById('career-list');
         const failure = 'Career opportunities could not be loaded.';
+
+        let allCareers = [];
 
         function stillThere() {
           return section !== null && section.isConnected;
@@ -48,10 +75,82 @@
 
         function showError() {
           if (!stillThere() || status === null || error === null) return;
+          if (filtersContainer) filtersContainer.hidden = true;
           status.textContent = '';
           error.textContent = failure;
           error.hidden = false;
         }
+
+        function populateLocations(jobs) {
+          if (!locationSelect) return;
+          const currentVal = locationSelect.value;
+          const locations = Array.from(
+            new Set(
+              jobs
+                .map((j) => (typeof j.location === 'string' ? j.location.trim() : ''))
+                .filter(Boolean),
+            ),
+          ).sort();
+
+          locationSelect.innerHTML = '<option value="">All locations</option>';
+          for (const loc of locations) {
+            const opt = document.createElement('option');
+            opt.value = loc;
+            opt.textContent = loc;
+            locationSelect.appendChild(opt);
+          }
+          if (locations.includes(currentVal)) {
+            locationSelect.value = currentVal;
+          } else {
+            locationSelect.value = '';
+          }
+        }
+
+        function applyFilters() {
+          if (!stillThere() || section === null) return;
+          const selectedLocation = (locationSelect?.value ?? '').trim().toLowerCase();
+          const accommodationsOnly = Boolean(accommodationsCheckbox?.checked);
+
+          const matched = allCareers.filter((job) => {
+            if (selectedLocation !== '') {
+              const jobLoc = (
+                typeof job.location === 'string' ? job.location.trim() : ''
+              ).toLowerCase();
+              if (jobLoc !== selectedLocation) return false;
+            }
+            if (accommodationsOnly) {
+              const acc = typeof job.accommodations === 'string' ? job.accommodations.trim() : '';
+              if (acc === '') return false;
+            }
+            return true;
+          });
+
+          renderJobs(matched);
+        }
+
+        function renderJobs(jobs) {
+          if (!stillThere() || section === null) return;
+          const target = listContainer || section;
+          target.querySelectorAll('savanna-job-card').forEach((card) => {
+            card.remove();
+          });
+
+          if (jobs.length === 0) {
+            showStatus('No career opportunities match your filters.');
+            return;
+          }
+
+          showStatus('');
+          for (const job of jobs) {
+            const card = document.createElement('savanna-job-card');
+            card.job = job;
+            target.append(card);
+          }
+        }
+
+        locationSelect?.addEventListener('change', applyFilters);
+        locationSelect?.addEventListener('input', applyFilters);
+        accommodationsCheckbox?.addEventListener('change', applyFilters);
 
         function careersUrl(apiBase) {
           const base = new URL(apiBase);
@@ -121,20 +220,15 @@
               return;
             }
             if (!stillThere() || section === null) return;
-            section.querySelectorAll('savanna-job-card').forEach((card) => {
-              card.remove();
-            });
             if (body.items.length === 0) {
+              if (filtersContainer) filtersContainer.hidden = true;
               showStatus('No career opportunities are available.');
               return;
             }
-            showStatus('');
-            if (!stillThere() || section === null) return;
-            for (const job of body.items) {
-              const card = document.createElement('savanna-job-card');
-              card.job = job;
-              section.append(card);
-            }
+            allCareers = body.items;
+            if (filtersContainer) filtersContainer.hidden = false;
+            populateLocations(allCareers);
+            applyFilters();
           } catch {
             if (!stillThere()) return;
             showError();
