@@ -45,6 +45,11 @@ Defined in `packages/contracts/src/element.ts`.
 | ----------------------- | ------------------------- |
 | `savanna-status-change` | `{ status }` — `idle`, `loading`, `ready`, `empty`, `error` |
 | `savanna-error`         | `{ message, cause? }`     |
+| `savanna-lesson-ready`  | `{ lessonId, currentTime }` — video can play; a timestamp link was already applied |
+| `savanna-progress`      | `{ lessonId, currentTime }` — playback moved, or the learner seeked |
+| `savanna-completed`     | `{ lessonId, currentTime }` — the video reached the end |
+
+The player remembers each lesson's position, plus speed and volume, in `localStorage` on this device. It does not store progress on a server. Listen to the three playback events if the host site wants its own record. A copied lesson link uses `savanna-t` (seconds) and `savanna-lesson` (the lesson id). `#t=` and `?t=` open at that time when `savanna-lesson` is absent or matches.
 
 ## Requirements for the host
 

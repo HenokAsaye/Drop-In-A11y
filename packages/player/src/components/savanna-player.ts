@@ -44,6 +44,14 @@ import {
 } from '../documents/lesson-documents';
 import { MediaController } from '../media/media-controller';
 import { MediaSync } from '../media/media-sync';
+import {
+  readLessonPosition,
+  readPlaybackSettings,
+  readTimestamp,
+  saveLessonPosition,
+  savePlaybackSettings,
+  withTimestamp,
+} from '../playback/playback-memory';
 import { SIGN_LANGUAGE_TAG, type SignLanguageWindow } from '../sign-language/sign-language-window';
 import '../transcript/transcript-panel';
 import type {
@@ -99,6 +107,8 @@ export class SavannaPlayer extends LitElement {
     transcriptLanguage: { state: true },
     transcriptSegments: { state: true },
     captionSettings: { state: true },
+    resumeOffer: { state: true },
+    linkMessage: { state: true },
     signLanguageOpen: { state: true },
     signLanguageSrc: { state: true },
     audioDescriptionEnabled: { state: true },
@@ -225,10 +235,19 @@ export class SavannaPlayer extends LitElement {
       min-width: 60px;
     }
 
-    .time-display {
+    .time-display,
+    .copy-status {
       font-size: 0.875rem;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
+    }
+
+    .resume-btn,
+    .copy-link-btn {
+      width: auto;
+      padding-inline: 0.75rem;
+      font-size: 0.875rem;
+      white-space: nowrap;
     }
 
     .offline {
@@ -368,6 +387,9 @@ export class SavannaPlayer extends LitElement {
   declare transcriptLanguage: 'en' | 'am';
   declare transcriptSegments: TranscriptSegment[];
   declare captionSettings: CaptionSettings;
+  /** Saved position to offer, in seconds. Null when there is nothing to resume. */
+  declare resumeOffer: number | null;
+  declare linkMessage: string;
   declare signLanguageOpen: boolean;
   declare signLanguageSrc: string;
   declare audioDescriptionEnabled: boolean;
@@ -383,6 +405,15 @@ export class SavannaPlayer extends LitElement {
   private captionManager: CaptionManager | null = null;
   private captionPreferencesLoaded = false;
   private captionChoiceStored = false;
+  private playbackPreferencesLoaded = false;
+  private applyingPlayback = false;
+  private playbackApplied = false;
+  private positionWrites = false;
+  private positionTouched = false;
+  private lastSavedPositionSecond = -1;
+  private lastProgressSecond = -1;
+  private playbackStartToken = '';
+  private readyNotifiedFor = '';
   private mediaSync: MediaSync | null = null;
   private signLanguageDetach: (() => void) | null = null;
   private audioDescription: AudioDescriptionTrack | null = null;
@@ -397,9 +428,11 @@ export class SavannaPlayer extends LitElement {
         break;
       case 'seek-backward':
         this.controller?.seekBy(-SEEK_STEP_SECONDS);
+        this.noteUserSeek();
         break;
       case 'seek-forward':
         this.controller?.seekBy(SEEK_STEP_SECONDS);
+        this.noteUserSeek();
         break;
       case 'volume-up':
         this.controller?.changeVolume(VOLUME_STEP);
@@ -437,6 +470,8 @@ export class SavannaPlayer extends LitElement {
     this.transcriptLanguage = 'en';
     this.transcriptSegments = [];
     this.captionSettings = { ...DEFAULT_CAPTION_SETTINGS };
+    this.resumeOffer = null;
+    this.linkMessage = '';
     this.signLanguageOpen = false;
     this.signLanguageSrc = '';
     this.audioDescriptionEnabled = false;
@@ -478,6 +513,7 @@ export class SavannaPlayer extends LitElement {
     this.signLanguageDetach = null;
     this.mediaSync?.dispose();
     this.mediaSync = null;
+    if (this.positionTouched) this.rememberPosition(this.currentTime, true);
     this.abortController?.abort();
     this.abortController = null;
     this.transcriptRequestId += 1;
@@ -493,6 +529,7 @@ export class SavannaPlayer extends LitElement {
       this.transcriptLanguage = transcriptLanguageOf(this.captionLanguage);
     }
     this.restoreCaptionSettings(changed);
+    this.restorePlaybackPreferences();
     if (changed.has('lesson')) {
       this.signLanguageSrc = this.lesson?.media?.signLanguage ?? this.signLanguageSrc;
       this.documentLinks = lessonDocumentLinks(this.lesson?.documents, document.baseURI);
@@ -512,6 +549,9 @@ export class SavannaPlayer extends LitElement {
     if (changed.has('audioDescriptionEnabled') || changed.has('lesson')) {
       this.syncAudioDescription();
     }
+    if (changed.has('status') || changed.has('lesson') || changed.has('videoSrc')) {
+      this.syncPlaybackStart();
+    }
   }
 
   togglePlay = async (): Promise<void> => {
@@ -524,14 +564,17 @@ export class SavannaPlayer extends LitElement {
     if (this.videoElement) {
       this.isMuted = this.videoElement.muted;
       this.volume = this.videoElement.volume;
+    } else {
+      this.isMuted = !this.isMuted;
     }
+    this.rememberPlayback();
   };
 
   handleSeekInput = (event: Event): void => {
     const target = event.target as HTMLInputElement;
     const value = parseFloat(target.value);
     this.controller?.seekTo(value);
-    this.currentTime = value;
+    this.noteUserSeek(value);
   };
 
   handleVolumeInput = (event: Event): void => {
@@ -544,7 +587,11 @@ export class SavannaPlayer extends LitElement {
       }
       this.volume = this.videoElement.volume;
       this.isMuted = this.videoElement.muted;
+    } else {
+      this.volume = value;
+      if (value > 0) this.isMuted = false;
     }
+    this.rememberPlayback();
   };
 
   cyclePlaybackSpeed = (): void => {
@@ -553,6 +600,7 @@ export class SavannaPlayer extends LitElement {
     const nextSpeed = speeds[(currentIndex + 1) % speeds.length] ?? 1;
     this.controller?.setPlaybackRate(nextSpeed);
     this.playbackRate = nextSpeed;
+    this.rememberPlayback();
   };
 
   toggleFullscreen = async (): Promise<void> => {
@@ -736,9 +784,11 @@ export class SavannaPlayer extends LitElement {
   };
 
   private handleVideoTimeUpdate = (): void => {
-    if (this.videoElement) {
-      this.currentTime = this.videoElement.currentTime;
-    }
+    if (!this.videoElement) return;
+    this.currentTime = this.videoElement.currentTime;
+    if (this.videoElement.paused || !this.positionWrites) return;
+    this.rememberPosition(this.currentTime, false);
+    this.emitProgress(false);
   };
 
   private handleVideoDurationChange = (): void => {
@@ -748,15 +798,32 @@ export class SavannaPlayer extends LitElement {
   };
 
   private handleVideoVolumeChange = (): void => {
-    if (this.videoElement) {
-      this.volume = this.videoElement.volume;
-      this.isMuted = this.videoElement.muted;
-    }
+    if (!this.videoElement || this.applyingPlayback) return;
+    this.volume = this.videoElement.volume;
+    this.isMuted = this.videoElement.muted;
+    if (this.playbackApplied) this.rememberPlayback();
   };
 
   private handleVideoRateChange = (): void => {
-    if (this.videoElement) {
-      this.playbackRate = this.videoElement.playbackRate;
+    if (!this.videoElement || this.applyingPlayback) return;
+    this.playbackRate = this.videoElement.playbackRate;
+    if (this.playbackApplied) this.rememberPlayback();
+  };
+
+  private handleVideoLoadedMetadata = (): void => {
+    const video = this.videoElement;
+    if (!video || this.status !== 'ready') return;
+    this.duration = Number.isFinite(video.duration) ? video.duration : this.duration;
+    this.consumeStartTime(video);
+  };
+
+  private handleVideoEnded = (): void => {
+    this.isPaused = true;
+    if (this.videoElement) this.currentTime = this.videoElement.currentTime;
+    this.rememberPosition(this.currentTime, true);
+    const lessonId = this.lessonId.trim();
+    if (lessonId !== '' && this.status === 'ready') {
+      this.emitPlayback('savanna-completed', lessonId, this.currentTime);
     }
   };
 
@@ -792,9 +859,10 @@ export class SavannaPlayer extends LitElement {
             @pause=${this.handleVideoPause}
             @timeupdate=${this.handleVideoTimeUpdate}
             @durationchange=${this.handleVideoDurationChange}
+            @loadedmetadata=${this.handleVideoLoadedMetadata}
             @volumechange=${this.handleVideoVolumeChange}
             @ratechange=${this.handleVideoRateChange}
-            @ended=${this.handleVideoPause}
+            @ended=${this.handleVideoEnded}
           ></video>
           <savanna-sign-language
             .src=${signLanguageSource}
@@ -803,6 +871,17 @@ export class SavannaPlayer extends LitElement {
           ></savanna-sign-language>
         </div>
         <div class="controls-toolbar" role="toolbar" aria-label="Media player controls">
+          ${
+            this.status === 'ready' && this.resumeOffer !== null
+              ? html`<button
+                  type="button"
+                  class="control-btn resume-btn"
+                  @click=${this.continueFromSaved}
+                >
+                  Continue from ${formatTime(this.resumeOffer)}
+                </button>`
+              : nothing
+          }
           <button
             type="button"
             class="control-btn play-btn"
@@ -870,6 +949,15 @@ export class SavannaPlayer extends LitElement {
 
           <button
             type="button"
+            class="control-btn copy-link-btn"
+            @click=${() => void this.copyTimestampLink()}
+          >
+            Copy link at ${formatTime(this.currentTime)}
+          </button>
+          <span class="copy-status" role="status" aria-live="polite">${this.linkMessage}</span>
+
+          <button
+            type="button"
             class="control-btn fullscreen-btn"
             @click=${this.toggleFullscreen}
             aria-label=${this.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
@@ -930,7 +1018,7 @@ export class SavannaPlayer extends LitElement {
     const seconds = event.detail?.seconds;
     if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return;
     this.controller?.seekTo(seconds);
-    this.currentTime = this.videoElement?.currentTime ?? seconds;
+    this.noteUserSeek(seconds);
   };
 
   private onTranscriptLanguage = (event: CustomEvent<TranscriptLanguageDetail>): void => {
@@ -1029,6 +1117,146 @@ export class SavannaPlayer extends LitElement {
     `;
   }
 
+  private restorePlaybackPreferences(): void {
+    if (this.playbackPreferencesLoaded) return;
+    this.playbackPreferencesLoaded = true;
+    const stored = readPlaybackSettings();
+    if (stored === null) return;
+    this.volume = stored.volume;
+    this.playbackRate = stored.playbackRate;
+    this.isMuted = stored.muted;
+  }
+
+  private syncPlaybackStart(): void {
+    const video = this.videoElement;
+    if (!video || this.status !== 'ready') return;
+    if (video.readyState >= 1) this.consumeStartTime(video);
+  }
+
+  /** Apply saved speed and volume, then a timestamp link or the resume offer. */
+  private consumeStartTime(video: HTMLVideoElement): void {
+    const lessonId = this.lessonId.trim();
+    if (lessonId === '' || this.status !== 'ready') return;
+    const token = `${lessonId}:${this.requestId}`;
+    if (this.playbackStartToken === token) return;
+    this.playbackStartToken = token;
+
+    this.applyStoredPlayback(video);
+    const linked = readTimestamp(window.location.href, lessonId);
+    if (linked !== null) {
+      this.controller?.seekTo(linked);
+      const actual = video.currentTime;
+      this.currentTime = Number.isFinite(actual) ? actual : linked;
+      this.resumeOffer = null;
+      this.positionWrites = true;
+      this.rememberPosition(this.currentTime, true);
+    } else {
+      const saved = readLessonPosition(lessonId);
+      const duration = video.duration;
+      const usable =
+        saved !== null &&
+        saved >= 1 &&
+        (!Number.isFinite(duration) || duration <= 0 || saved < duration - 1);
+      this.resumeOffer = usable ? saved : null;
+      this.positionWrites = true;
+    }
+    this.notifyLessonReady(lessonId);
+  }
+
+  private applyStoredPlayback(video: HTMLVideoElement): void {
+    this.applyingPlayback = true;
+    video.volume = this.volume;
+    video.muted = this.isMuted;
+    video.playbackRate = this.playbackRate;
+    if (Number.isFinite(video.volume)) this.volume = video.volume;
+    if (Number.isFinite(video.playbackRate)) this.playbackRate = video.playbackRate;
+    this.isMuted = video.muted;
+    this.applyingPlayback = false;
+    this.playbackApplied = true;
+  }
+
+  private noteUserSeek(target?: number): void {
+    if (typeof target === 'number' && Number.isFinite(target)) {
+      this.currentTime = target;
+    } else if (this.videoElement && Number.isFinite(this.videoElement.currentTime)) {
+      this.currentTime = this.videoElement.currentTime;
+    }
+    this.resumeOffer = null;
+    this.rememberPosition(this.currentTime, true);
+    this.emitProgress(true);
+  }
+
+  private continueFromSaved = (): void => {
+    if (this.resumeOffer === null) return;
+    const target = this.resumeOffer;
+    this.controller?.seekTo(target);
+    this.noteUserSeek(target);
+  };
+
+  private copyTimestampLink = async (): Promise<void> => {
+    const lessonId = this.lessonId.trim();
+    const seconds = this.videoElement?.currentTime ?? this.currentTime;
+    const href = withTimestamp(window.location.href, lessonId, seconds);
+    try {
+      const clipboard = navigator.clipboard;
+      if (typeof clipboard?.writeText !== 'function') throw new Error('clipboard unavailable');
+      await clipboard.writeText(href);
+      this.linkMessage = 'Link copied';
+    } catch {
+      this.linkMessage = 'Could not copy the link';
+    }
+  };
+
+  private rememberPosition(seconds: number, force: boolean): void {
+    const lessonId = this.lessonId.trim();
+    if (!this.positionWrites || this.status !== 'ready' || lessonId === '') return;
+    if (!Number.isFinite(seconds) || seconds < 0) return;
+    const mark = Math.floor(seconds);
+    if (!force && mark === this.lastSavedPositionSecond) return;
+    this.lastSavedPositionSecond = mark;
+    this.positionTouched = true;
+    saveLessonPosition(lessonId, seconds);
+  }
+
+  private rememberPlayback(): void {
+    if (!Number.isFinite(this.volume) || !Number.isFinite(this.playbackRate)) return;
+    savePlaybackSettings({
+      volume: this.volume,
+      playbackRate: this.playbackRate,
+      muted: this.isMuted,
+    });
+  }
+
+  private emitProgress(force: boolean): void {
+    const lessonId = this.lessonId.trim();
+    if (!this.positionWrites || this.status !== 'ready' || lessonId === '') return;
+    const second = Math.floor(this.currentTime);
+    if (!force && second === this.lastProgressSecond) return;
+    this.lastProgressSecond = second;
+    this.emitPlayback('savanna-progress', lessonId, this.currentTime);
+  }
+
+  private notifyLessonReady(lessonId: string): void {
+    const token = `${lessonId}:${this.requestId}`;
+    if (this.readyNotifiedFor === token) return;
+    this.readyNotifiedFor = token;
+    this.emitPlayback('savanna-lesson-ready', lessonId, this.currentTime);
+  }
+
+  private emitPlayback(
+    name: 'savanna-lesson-ready' | 'savanna-progress' | 'savanna-completed',
+    lessonId: string,
+    currentTime: number,
+  ): void {
+    this.dispatchEvent(
+      new CustomEvent(name, {
+        detail: { lessonId, currentTime },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
   private restoreCaptionSettings(changed: PropertyValues<this>): void {
     if (!this.captionPreferencesLoaded) {
       this.captionPreferencesLoaded = true;
@@ -1098,6 +1326,13 @@ export class SavannaPlayer extends LitElement {
   };
 
   private beginLoad(): void {
+    this.resumeOffer = null;
+    this.positionWrites = false;
+    this.positionTouched = false;
+    this.lastSavedPositionSecond = -1;
+    this.lastProgressSecond = -1;
+    this.playbackStartToken = '';
+    this.readyNotifiedFor = '';
     this.abortController?.abort();
     this.abortController = null;
     this.transcriptRequestId += 1;

@@ -3,6 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import '../src/index';
 import { SavannaPlayer } from '../src/components/savanna-player';
+import {
+  readLessonPosition,
+  readPlaybackSettings,
+  saveLessonPosition,
+  savePlaybackSettings,
+} from '../src/playback/playback-memory';
 
 function lessonBody(
   id: string,
@@ -89,12 +95,19 @@ function listen(player: SavannaPlayer): { statuses: PlayerStatus[]; errors: stri
   return { statuses, errors };
 }
 
+function resetBrowserState(): void {
+  localStorage.clear();
+  window.history.replaceState(null, '', '/');
+}
+
 beforeEach(() => {
+  resetBrowserState();
   vi.stubGlobal('fetch', vi.fn(hangUntilAbort));
 });
 
 afterEach(() => {
   document.body.innerHTML = '';
+  resetBrowserState();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -408,5 +421,194 @@ describe('<savanna-player> video controls (spec 4.1)', () => {
     await player.updateComplete;
     expect(speedBtn.querySelector('span[aria-hidden="true"]')?.textContent).toBe('1.25x');
     expect(speedBtn.getAttribute('aria-label')).toBe('Playback speed: 1.25x');
+  });
+});
+
+function playbackEvents(player: SavannaPlayer): {
+  ready: { lessonId: string; currentTime: number }[];
+  progress: { lessonId: string; currentTime: number }[];
+  completed: { lessonId: string; currentTime: number }[];
+} {
+  const ready: { lessonId: string; currentTime: number }[] = [];
+  const progress: { lessonId: string; currentTime: number }[] = [];
+  const completed: { lessonId: string; currentTime: number }[] = [];
+  player.addEventListener('savanna-lesson-ready', ((
+    event: CustomEvent<{ lessonId: string; currentTime: number }>,
+  ) => {
+    ready.push(event.detail);
+  }) as EventListener);
+  player.addEventListener('savanna-progress', ((
+    event: CustomEvent<{ lessonId: string; currentTime: number }>,
+  ) => {
+    progress.push(event.detail);
+  }) as EventListener);
+  player.addEventListener('savanna-completed', ((
+    event: CustomEvent<{ lessonId: string; currentTime: number }>,
+  ) => {
+    completed.push(event.detail);
+  }) as EventListener);
+  return { ready, progress, completed };
+}
+
+async function showReadyLesson(id: string, title: string): Promise<SavannaPlayer> {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(lessonBody(id, title))));
+  const player = document.createElement('savanna-player');
+  playbackEvents(player);
+  await mount({ 'lesson-id': id, 'api-base': 'https://api.example' }, player);
+  await vi.waitFor(() => {
+    expect(player.status).toBe('ready');
+  });
+  player.videoElement?.dispatchEvent(new Event('loadedmetadata'));
+  await player.updateComplete;
+  return player;
+}
+
+describe('<savanna-player> resume, playback memory, and host events', () => {
+  it('offers the saved time, speed, and volume for the same lesson', async () => {
+    saveLessonPosition('networking-101', 252);
+    savePlaybackSettings({ volume: 0.4, playbackRate: 1.5, muted: false });
+
+    const player = await showReadyLesson('networking-101', 'Introduction to Networking');
+    const resume = player.shadowRoot?.querySelector('button.resume-btn');
+
+    expect(resume?.textContent?.trim()).toBe('Continue from 4:12');
+    expect(player.volume).toBeCloseTo(0.4);
+    expect(player.playbackRate).toBe(1.5);
+    expect(player.videoElement?.volume).toBeCloseTo(0.4);
+    expect(player.videoElement?.playbackRate).toBe(1.5);
+
+    resume?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await player.updateComplete;
+    expect(player.currentTime).toBe(252);
+    expect(player.shadowRoot?.querySelector('button.resume-btn')).toBeNull();
+  });
+
+  it('does not offer another lesson’s saved position', async () => {
+    saveLessonPosition('networking-101', 252);
+    savePlaybackSettings({ volume: 0.4, playbackRate: 1.25, muted: false });
+
+    const other = await showReadyLesson('routing-201', 'Routing');
+    expect(other.shadowRoot?.querySelector('button.resume-btn')).toBeNull();
+    expect(readLessonPosition('networking-101')).toBe(252);
+    expect(other.volume).toBeCloseTo(0.4);
+    expect(other.playbackRate).toBe(1.25);
+    other.remove();
+
+    const same = await showReadyLesson('networking-101', 'Introduction to Networking');
+    expect(same.shadowRoot?.querySelector('button.resume-btn')?.textContent?.trim()).toBe(
+      'Continue from 4:12',
+    );
+  });
+
+  it('saves a seek, a speed change, and a volume change', async () => {
+    saveLessonPosition('networking-101', 252);
+    const player = await showReadyLesson('networking-101', 'Introduction to Networking');
+
+    const seek = player.shadowRoot?.querySelector('input.seek-range');
+    if (!(seek instanceof HTMLInputElement)) throw new Error('missing seek');
+    seek.value = '90';
+    seek.dispatchEvent(new Event('input', { bubbles: true }));
+    await player.updateComplete;
+
+    expect(readLessonPosition('networking-101')).toBe(90);
+    expect(player.shadowRoot?.querySelector('button.resume-btn')).toBeNull();
+
+    player.cyclePlaybackSpeed();
+    await player.updateComplete;
+    const volume = player.shadowRoot?.querySelector('input.volume-range');
+    if (!(volume instanceof HTMLInputElement)) throw new Error('missing volume');
+    volume.value = '0.55';
+    volume.dispatchEvent(new Event('input', { bubbles: true }));
+    await player.updateComplete;
+
+    expect(readPlaybackSettings()).toMatchObject({ playbackRate: 1.25, volume: 0.55 });
+  });
+
+  it('dispatches lesson-ready, progress, and completed with the lesson id and time', async () => {
+    const player = document.createElement('savanna-player');
+    const events = playbackEvents(player);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(lessonBody('networking-101', 'Introduction to Networking')),
+        ),
+    );
+    await mount({ 'lesson-id': 'networking-101', 'api-base': 'https://api.example' }, player);
+    await vi.waitFor(() => {
+      expect(player.status).toBe('ready');
+    });
+    player.videoElement?.dispatchEvent(new Event('loadedmetadata'));
+    await player.updateComplete;
+
+    expect(events.ready).toEqual([{ lessonId: 'networking-101', currentTime: 0 }]);
+
+    const seek = player.shadowRoot?.querySelector('input.seek-range');
+    if (!(seek instanceof HTMLInputElement)) throw new Error('missing seek');
+    seek.value = '30';
+    seek.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(events.progress.at(-1)).toEqual({ lessonId: 'networking-101', currentTime: 30 });
+
+    player.videoElement?.dispatchEvent(new Event('ended'));
+    expect(events.completed).toEqual([{ lessonId: 'networking-101', currentTime: 30 }]);
+  });
+
+  it('opens a copied link at that time after the lesson is ready', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    saveLessonPosition('networking-101', 10);
+    const player = await showReadyLesson('networking-101', 'Introduction to Networking');
+    const video = player.videoElement;
+    if (video === null) throw new Error('missing video');
+    video.currentTime = 252;
+    player.currentTime = 252;
+    await player.updateComplete;
+
+    const copy = player.shadowRoot?.querySelector('button.copy-link-btn');
+    expect(copy?.textContent?.trim()).toBe('Copy link at 4:12');
+    copy?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalledOnce();
+    });
+    await player.updateComplete;
+    expect(player.shadowRoot?.querySelector('.copy-status')?.textContent?.trim()).toBe(
+      'Link copied',
+    );
+
+    const copied = String(writeText.mock.calls[0]?.[0]);
+    const url = new URL(copied);
+    window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+    player.remove();
+
+    const opened = await showReadyLesson('networking-101', 'Introduction to Networking');
+    expect(opened.currentTime).toBe(252);
+    expect(opened.videoElement?.currentTime).toBe(252);
+    expect(opened.shadowRoot?.querySelector('button.resume-btn')).toBeNull();
+    opened.remove();
+
+    const other = await showReadyLesson('routing-201', 'Routing');
+    expect(other.currentTime).toBe(0);
+    expect(readLessonPosition('networking-101')).toBe(252);
+  });
+
+  it('names the resume and copy controls for the keyboard and screen readers', async () => {
+    saveLessonPosition('networking-101', 252);
+    const player = await showReadyLesson('networking-101', 'Introduction to Networking');
+    const resume = player.shadowRoot?.querySelector('button.resume-btn');
+    const copy = player.shadowRoot?.querySelector('button.copy-link-btn');
+
+    expect(resume).toBeInstanceOf(HTMLButtonElement);
+    expect(resume?.getAttribute('type')).toBe('button');
+    expect(resume?.textContent?.trim()).toBe('Continue from 4:12');
+    expect(copy).toBeInstanceOf(HTMLButtonElement);
+    expect(copy?.getAttribute('type')).toBe('button');
+    expect(copy?.textContent?.trim()).toBe('Copy link at 0:00');
+    expect(player.shadowRoot?.querySelector('.copy-status')?.getAttribute('aria-live')).toBe(
+      'polite',
+    );
   });
 });

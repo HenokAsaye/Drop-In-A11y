@@ -23,9 +23,21 @@ export interface SavannaPlayerAttributes {
 
 export type PlayerStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'error';
 
+/** Lesson id and media time. The host may record these; the player does not. */
+export interface SavannaPlaybackEventDetail {
+  lessonId: string;
+  currentTime: number;
+}
+
 export interface SavannaPlayerEventMap {
   'savanna-status-change': CustomEvent<{ status: PlayerStatus }>;
   'savanna-error': CustomEvent<{ message: string; cause?: unknown }>;
+  /** The lesson video can play, and a timestamp link has already been applied. */
+  'savanna-lesson-ready': CustomEvent<SavannaPlaybackEventDetail>;
+  /** Playback moved or the learner seeked. */
+  'savanna-progress': CustomEvent<SavannaPlaybackEventDetail>;
+  /** The lesson video reached the end. */
+  'savanna-completed': CustomEvent<SavannaPlaybackEventDetail>;
 }
 
 export type SavannaPlayerEventName = keyof SavannaPlayerEventMap;
