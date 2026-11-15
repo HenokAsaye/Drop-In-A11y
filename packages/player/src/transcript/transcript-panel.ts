@@ -1,6 +1,7 @@
 import type { TranscriptSegment } from '@savanna/contracts';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 
+import { interfaceText } from '../labels';
 import { REDUCED_MOTION_QUERY, mediaMatches, watchMedia } from '../media-preferences';
 import { findActiveSegment, searchSegments } from './transcript-sync';
 
@@ -26,6 +27,7 @@ export class TranscriptPanel extends LitElement {
     segments: { attribute: false },
     currentTime: { type: Number, attribute: 'current-time' },
     language: { type: String },
+    interfaceLang: { type: String, attribute: 'interface-lang' },
     reducedMotion: { type: Boolean, reflect: true, attribute: 'reduced-motion' },
     query: { state: true },
     activeIndex: { state: true },
@@ -130,6 +132,7 @@ export class TranscriptPanel extends LitElement {
   declare segments: TranscriptSegment[];
   declare currentTime: number;
   declare language: string;
+  declare interfaceLang: string;
   declare reducedMotion: boolean;
   declare query: string;
   declare activeIndex: number;
@@ -146,6 +149,7 @@ export class TranscriptPanel extends LitElement {
     this.segments = [];
     this.currentTime = 0;
     this.language = 'en';
+    this.interfaceLang = '';
     this.reducedMotion = false;
     this.query = '';
     this.activeIndex = -1;
@@ -180,24 +184,31 @@ export class TranscriptPanel extends LitElement {
     const language = this.language === 'am' ? 'am' : 'en';
     const visible = this.visibleIndexes();
     return html`
-      <section aria-label="Transcript">
-        <div class="languages" role="group" aria-label="Transcript language">
+      <section aria-label=${interfaceText(this.interfaceLang, 'transcript')}>
+        <div
+          class="languages"
+          role="group"
+          aria-label=${interfaceText(this.interfaceLang, 'transcriptLanguageGroup')}
+        >
           <button
             type="button"
             aria-pressed=${language === 'en' ? 'true' : 'false'}
             @click=${() => this.chooseLanguage('en')}
           >
-            English
+            ${interfaceText(this.interfaceLang, 'english')}
           </button>
           <button
             type="button"
+            lang="am"
             aria-pressed=${language === 'am' ? 'true' : 'false'}
             @click=${() => this.chooseLanguage('am')}
           >
             አማርኛ
           </button>
         </div>
-        <label for="transcript-search">Search transcript</label>
+        <label for="transcript-search"
+          >${interfaceText(this.interfaceLang, 'searchTranscript')}</label
+        >
         <input id="transcript-search" type="search" .value=${this.query} @input=${this.onSearch} />
         <div class="segments" @scroll=${this.onManualScroll}>
           ${visible.map((index) => {
@@ -219,11 +230,12 @@ export class TranscriptPanel extends LitElement {
                 <button
                   type="button"
                   class="bookmark-sentence"
-                  lang=${language}
-                  aria-label=${`Bookmark sentence: ${segment.text}`}
+                  aria-label=${interfaceText(this.interfaceLang, 'bookmarkSentence', {
+                    text: segment.text,
+                  })}
                   @click=${() => this.bookmark(segment)}
                 >
-                  Bookmark
+                  ${interfaceText(this.interfaceLang, 'bookmark')}
                 </button>
               </div>
             `;

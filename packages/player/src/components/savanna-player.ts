@@ -26,7 +26,6 @@ import {
   CAPTION_BACKGROUND_SWATCH,
   CAPTION_FONT_FAMILY,
   DEFAULT_CAPTION_SETTINGS,
-  EMPTY_LESSON_MESSAGE,
   LESSON_LOAD_FAILURE_MESSAGE,
   MAX_CAPTION_FONT_SCALE,
   MIN_CAPTION_FONT_SCALE,
@@ -58,6 +57,7 @@ import {
   savePlaybackSettings,
   withTimestamp,
 } from '../playback/playback-memory';
+import { interfaceText, uiLanguage, type LabelKey } from '../labels';
 import {
   FORCED_COLORS_QUERY,
   REDUCED_MOTION_QUERY,
@@ -73,14 +73,20 @@ import type {
   TranscriptSeekDetail,
 } from '../transcript/transcript-panel';
 
-const DOWNLOAD_FAILURE_MESSAGE = 'The download failed. Check your connection and try again.';
-const NO_WORKER_MESSAGE =
-  'Downloaded, but this site has not set up offline playback, so the lesson may not open offline.';
-const OFFLINE_MODES: { mode: OfflineMode; label: string }[] = [
-  { mode: 'audio', label: 'Download audio only' },
-  { mode: 'text', label: 'Download text only' },
-  { mode: 'full', label: 'Download everything' },
+const OFFLINE_MODES: { mode: OfflineMode; label: LabelKey; item: LabelKey }[] = [
+  { mode: 'audio', label: 'downloadAudio', item: 'audioOnly' },
+  { mode: 'text', label: 'downloadText', item: 'textOnly' },
+  { mode: 'full', label: 'downloadAll', item: 'everything' },
 ];
+
+type OfflineNotice =
+  | { kind: 'idle' }
+  | { kind: 'downloading'; amount: string }
+  | { kind: 'downloaded'; item: LabelKey }
+  | { kind: 'no-worker' }
+  | { kind: 'failed' }
+  | { kind: 'available' }
+  | { kind: 'removed' };
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} bytes`;
@@ -111,18 +117,31 @@ function readableChapters(
   return readable;
 }
 
-function bookmarkStatusMessage(status: string): string {
+function bookmarkStatusMessage(status: string, lang: string): string {
   switch (status) {
     case 'added':
-      return 'Bookmark saved.';
+      return interfaceText(lang, 'bookmarkSaved');
     case 'removed':
-      return 'Bookmark removed.';
+      return interfaceText(lang, 'bookmarkRemoved');
     case 'duplicate':
-      return 'This sentence is already bookmarked.';
+      return interfaceText(lang, 'bookmarkDuplicate');
     case 'limit':
-      return 'Bookmark limit reached.';
+      return interfaceText(lang, 'bookmarkLimit');
     case 'unavailable':
-      return 'Bookmarks could not be saved.';
+      return interfaceText(lang, 'bookmarkUnavailable');
+    default:
+      return '';
+  }
+}
+
+function exportStatusMessage(status: string, lang: string): string {
+  switch (status) {
+    case 'downloaded':
+      return interfaceText(lang, 'transcriptDownloaded');
+    case 'empty':
+      return interfaceText(lang, 'transcriptEmpty');
+    case 'failed':
+      return interfaceText(lang, 'transcriptFailed');
     default:
       return '';
   }
@@ -137,6 +156,7 @@ export class SavannaPlayer extends LitElement {
     lessonId: { type: String, attribute: 'lesson-id', reflect: true },
     apiBase: { type: String, attribute: 'api-base', reflect: true },
     captionLanguage: { type: String, attribute: 'caption-language' },
+    lang: { type: String },
     reducedMotion: { type: Boolean, reflect: true, attribute: 'reduced-motion' },
     swUrl: { type: String, attribute: 'sw-url' },
     status: { state: true },
@@ -546,6 +566,8 @@ export class SavannaPlayer extends LitElement {
   declare lessonId: string;
   declare apiBase: string;
   declare captionLanguage: string;
+  declare lang: string;
+  declare reducedMotion: boolean;
   declare swUrl: string;
   declare status: PlayerStatus;
   declare lesson: Lesson | null;
@@ -576,7 +598,6 @@ export class SavannaPlayer extends LitElement {
   declare transcriptExportMessage: string;
   declare textLessonOpen: boolean;
   declare shortcutHelpOpen: boolean;
-  declare reducedMotion: boolean;
 
   private abortController: AbortController | null = null;
   private requestId = 0;
@@ -603,6 +624,10 @@ export class SavannaPlayer extends LitElement {
   private audioDescription: AudioDescriptionTrack | null = null;
   private documentLinks: LessonDocumentLink[] = [];
   private mediaUnsubscribers: Array<() => void> = [];
+  private bookmarkState = '';
+  private exportState = '';
+  private linkState: '' | 'copied' | 'failed' = '';
+  private offlineNotice: OfflineNotice = { kind: 'idle' };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const action = resolveShortcut(event, this);
@@ -639,6 +664,7 @@ export class SavannaPlayer extends LitElement {
     this.lessonId = '';
     this.apiBase = '';
     this.captionLanguage = 'en';
+    this.lang = '';
     this.reducedMotion = false;
     this.swUrl = '/savanna-sw.js';
     this.status = 'idle';
@@ -666,6 +692,10 @@ export class SavannaPlayer extends LitElement {
     this.transcriptExportMessage = '';
     this.textLessonOpen = false;
     this.shortcutHelpOpen = false;
+  }
+
+  private text(key: LabelKey, values?: Record<string, string | number>): string {
+    return interfaceText(this.lang, key, values);
   }
 
   get videoElement(): HTMLVideoElement | null {
@@ -737,6 +767,49 @@ export class SavannaPlayer extends LitElement {
     });
   }
 
+  private refreshInterfaceMessages(): void {
+    this.bookmarkMessage = bookmarkStatusMessage(this.bookmarkState, this.lang);
+    this.transcriptExportMessage = exportStatusMessage(this.exportState, this.lang);
+    if (this.linkState === 'copied') this.linkMessage = this.text('linkCopied');
+    if (this.linkState === 'failed') this.linkMessage = this.text('linkCopyFailed');
+    this.applyOfflineNotice();
+    if (this.status === 'loading') {
+      this.statusMessage = this.text('loadingLesson', { id: this.lessonId.trim() });
+    } else if (this.lesson && (this.status === 'ready' || this.status === 'empty')) {
+      this.statusMessage = describeLesson(this.lesson, this.lang).message;
+    }
+  }
+
+  private applyOfflineNotice(): void {
+    const notice = this.offlineNotice;
+    switch (notice.kind) {
+      case 'downloading':
+        this.offlineMessage =
+          notice.amount === ''
+            ? this.text('downloading')
+            : this.text('downloadingProgress', { amount: notice.amount });
+        break;
+      case 'downloaded':
+        this.offlineMessage = this.text('downloadedForOffline', { item: this.text(notice.item) });
+        break;
+      case 'no-worker':
+        this.offlineMessage = this.text('noWorker');
+        break;
+      case 'failed':
+        this.offlineMessage = this.text('downloadFailed');
+        break;
+      case 'available':
+        this.offlineMessage = this.text('offlineAvailable');
+        break;
+      case 'removed':
+        this.offlineMessage = this.text('offlineRemoved');
+        break;
+      default:
+        this.offlineMessage = '';
+        break;
+    }
+  }
+
   private handleFullscreenChange = (): void => {
     this.isFullscreen = Boolean(document.fullscreenElement);
   };
@@ -752,6 +825,7 @@ export class SavannaPlayer extends LitElement {
       this.documentLinks = lessonDocumentLinks(this.lesson?.documents, document.baseURI);
     }
     if (changed.has('lessonId') || changed.has('apiBase')) this.beginLoad();
+    if (changed.has('lang')) this.refreshInterfaceMessages();
     if (
       changed.has('lessonId') ||
       changed.has('apiBase') ||
@@ -912,25 +986,30 @@ export class SavannaPlayer extends LitElement {
   private downloadLesson = async (mode: OfflineMode): Promise<void> => {
     if (this.offlineStatus === 'downloading') return;
     this.offlineStatus = 'downloading';
-    this.offlineMessage = 'Downloading.';
+    this.offlineNotice = { kind: 'downloading', amount: '' };
+    this.applyOfflineNotice();
     try {
       const pkg = await new LessonClient(this.apiBase.trim()).getOfflinePackage(
         this.lessonId.trim(),
       );
       await this.manager.download(pkg, mode, (progress) => {
         if (progress.status === 'downloading') {
-          this.offlineMessage = `Downloading. ${formatBytes(progress.completedBytes)} saved.`;
+          this.offlineNotice = {
+            kind: 'downloading',
+            amount: formatBytes(progress.completedBytes),
+          };
+          this.applyOfflineNotice();
         }
       });
-      const label = OFFLINE_MODES.find((entry) => entry.mode === mode)?.label ?? mode;
+      const item = OFFLINE_MODES.find((entry) => entry.mode === mode)?.item ?? 'everything';
       const playbackReady = await this.registerWorker();
       this.offlineStatus = 'downloaded';
-      this.offlineMessage = playbackReady
-        ? `Downloaded for offline use: ${label.replace('Download ', '')}.`
-        : NO_WORKER_MESSAGE;
+      this.offlineNotice = playbackReady ? { kind: 'downloaded', item } : { kind: 'no-worker' };
+      this.applyOfflineNotice();
     } catch {
       this.offlineStatus = 'failed';
-      this.offlineMessage = DOWNLOAD_FAILURE_MESSAGE;
+      this.offlineNotice = { kind: 'failed' };
+      this.applyOfflineNotice();
     }
   };
 
@@ -949,7 +1028,8 @@ export class SavannaPlayer extends LitElement {
   private removeDownload = async (): Promise<void> => {
     await this.manager.remove(this.lessonId.trim());
     this.offlineStatus = 'not-downloaded';
-    this.offlineMessage = 'Offline copy removed.';
+    this.offlineNotice = { kind: 'removed' };
+    this.applyOfflineNotice();
   };
 
   private async refreshOfflineStatus(): Promise<void> {
@@ -958,7 +1038,8 @@ export class SavannaPlayer extends LitElement {
       const status = await this.manager.status(this.lessonId.trim());
       if (status === 'downloaded') {
         this.offlineStatus = 'downloaded';
-        this.offlineMessage = 'This lesson is available offline.';
+        this.offlineNotice = { kind: 'available' };
+        this.applyOfflineNotice();
       }
     } catch {
       // Offline storage is optional; ignore failures and keep the download buttons.
@@ -969,7 +1050,7 @@ export class SavannaPlayer extends LitElement {
     if (this.status !== 'ready' || !this.supportsOffline) return nothing;
     const busy = this.offlineStatus === 'downloading';
     return html`
-      <div class="offline" role="group" aria-label="Offline use">
+      <div class="offline" role="group" aria-label=${this.text('offline')}>
         ${OFFLINE_MODES.map(
           ({ mode, label }) => html`
             <button
@@ -979,7 +1060,7 @@ export class SavannaPlayer extends LitElement {
               aria-disabled=${busy ? 'true' : 'false'}
               @click=${() => void this.downloadLesson(mode)}
             >
-              ${label}
+              ${this.text(label)}
             </button>
           `,
         )}
@@ -990,7 +1071,7 @@ export class SavannaPlayer extends LitElement {
                 class="control-btn offline-remove"
                 @click=${() => void this.removeDownload()}
               >
-                Remove download
+                ${this.text('removeDownload')}
               </button>`
             : nothing
         }
@@ -1060,7 +1141,8 @@ export class SavannaPlayer extends LitElement {
     return html`
       <section
         class="player-container"
-        aria-label="Lesson player"
+        lang=${uiLanguage(this.lang)}
+        aria-label=${this.text('lessonPlayer')}
         aria-busy=${this.status === 'loading' ? 'true' : nothing}
       >
         <p
@@ -1079,7 +1161,7 @@ export class SavannaPlayer extends LitElement {
             src=${videoSource}
             playsinline
             crossorigin="anonymous"
-            aria-label=${this.lesson?.title || 'Lesson video'}
+            aria-label=${this.lesson?.title || this.text('lessonVideo')}
             @play=${this.handleVideoPlay}
             @pause=${this.handleVideoPause}
             @timeupdate=${this.handleVideoTimeUpdate}
@@ -1091,12 +1173,13 @@ export class SavannaPlayer extends LitElement {
           ></video>
           <savanna-sign-language
             .src=${signLanguageSource}
+            .interfaceLang=${this.lang}
             ?reduced-motion=${this.reducedMotion}
             ?open=${this.signLanguageOpen}
             @savanna-sign-language-close=${this.handleSignLanguageClose}
           ></savanna-sign-language>
         </div>
-        <div class="controls-toolbar" role="toolbar" aria-label="Media player controls">
+        <div class="controls-toolbar" role="toolbar" aria-label=${this.text('mediaControls')}>
           ${
             this.status === 'ready' && this.resumeOffer !== null
               ? html`<button
@@ -1104,7 +1187,7 @@ export class SavannaPlayer extends LitElement {
                   class="control-btn resume-btn"
                   @click=${this.continueFromSaved}
                 >
-                  Continue from ${formatTime(this.resumeOffer)}
+                  ${this.text('continueFrom', { time: formatTime(this.resumeOffer) })}
                 </button>`
               : nothing
           }
@@ -1112,14 +1195,16 @@ export class SavannaPlayer extends LitElement {
             type="button"
             class="control-btn play-btn"
             @click=${this.togglePlay}
-            aria-label=${this.isPaused ? 'Play' : 'Pause'}
+            aria-label=${this.isPaused ? this.text('play') : this.text('pause')}
           >
             <span aria-hidden="true">${this.isPaused ? '▶' : '⏸'}</span>
-            <span class="visually-hidden">${this.isPaused ? 'Play' : 'Pause'}</span>
+            <span class="visually-hidden"
+              >${this.isPaused ? this.text('play') : this.text('pause')}</span
+            >
           </button>
 
           <div class="seek-container">
-            <label for="seek-control" class="visually-hidden">Seek</label>
+            <label for="seek-control" class="visually-hidden">${this.text('seek')}</label>
             <input
               id="seek-control"
               type="range"
@@ -1129,8 +1214,11 @@ export class SavannaPlayer extends LitElement {
               step="0.1"
               .value=${String(this.currentTime)}
               @input=${this.handleSeekInput}
-              aria-label="Seek"
-              aria-valuetext="${formatTime(this.currentTime)} of ${formatTime(this.duration)}"
+              aria-label=${this.text('seek')}
+              aria-valuetext=${this.text('seekValue', {
+                current: formatTime(this.currentTime),
+                duration: formatTime(this.duration),
+              })}
             />
             <span class="time-display" aria-hidden="true">
               ${formatTime(this.currentTime)} / ${formatTime(this.duration)}
@@ -1141,14 +1229,16 @@ export class SavannaPlayer extends LitElement {
             type="button"
             class="control-btn mute-btn"
             @click=${this.toggleMute}
-            aria-label=${this.isMuted ? 'Unmute' : 'Mute'}
+            aria-label=${this.isMuted ? this.text('unmute') : this.text('mute')}
           >
             <span aria-hidden="true">${this.isMuted ? '🔇' : '🔊'}</span>
-            <span class="visually-hidden">${this.isMuted ? 'Unmute' : 'Mute'}</span>
+            <span class="visually-hidden"
+              >${this.isMuted ? this.text('unmute') : this.text('mute')}</span
+            >
           </button>
 
           <div class="volume-container">
-            <label for="volume-control" class="visually-hidden">Volume</label>
+            <label for="volume-control" class="visually-hidden">${this.text('volume')}</label>
             <input
               id="volume-control"
               type="range"
@@ -1158,8 +1248,10 @@ export class SavannaPlayer extends LitElement {
               step="0.05"
               .value=${String(this.isMuted ? 0 : this.volume)}
               @input=${this.handleVolumeInput}
-              aria-label="Volume"
-              aria-valuetext="${Math.round((this.isMuted ? 0 : this.volume) * 100)}%"
+              aria-label=${this.text('volume')}
+              aria-valuetext=${this.text('volumeValue', {
+                percent: Math.round((this.isMuted ? 0 : this.volume) * 100),
+              })}
             />
           </div>
 
@@ -1167,10 +1259,12 @@ export class SavannaPlayer extends LitElement {
             type="button"
             class="control-btn speed-btn"
             @click=${this.cyclePlaybackSpeed}
-            aria-label="Playback speed: ${this.playbackRate}x"
+            aria-label=${this.text('playbackSpeed', { rate: this.playbackRate })}
           >
             <span aria-hidden="true">${this.playbackRate}x</span>
-            <span class="visually-hidden">Playback speed: ${this.playbackRate}x</span>
+            <span class="visually-hidden"
+              >${this.text('playbackSpeed', { rate: this.playbackRate })}</span
+            >
           </button>
 
           <button
@@ -1178,7 +1272,7 @@ export class SavannaPlayer extends LitElement {
             class="control-btn copy-link-btn"
             @click=${() => void this.copyTimestampLink()}
           >
-            Copy link at ${formatTime(this.currentTime)}
+            ${this.text('copyLink', { time: formatTime(this.currentTime) })}
           </button>
           <span class="copy-status" role="status" aria-live="polite">${this.linkMessage}</span>
 
@@ -1186,11 +1280,11 @@ export class SavannaPlayer extends LitElement {
             type="button"
             class="control-btn fullscreen-btn"
             @click=${this.toggleFullscreen}
-            aria-label=${this.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            aria-label=${this.isFullscreen ? this.text('exitFullscreen') : this.text('fullscreen')}
           >
             <span aria-hidden="true">${this.isFullscreen ? '⤓' : '⤢'}</span>
             <span class="visually-hidden"
-              >${this.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</span
+              >${this.isFullscreen ? this.text('exitFullscreen') : this.text('fullscreen')}</span
             >
           </button>
 
@@ -1200,11 +1294,11 @@ export class SavannaPlayer extends LitElement {
                   type="button"
                   class="control-btn sign-language-btn"
                   @click=${this.toggleSignLanguage}
-                  aria-label="Ethiopian Sign Language"
+                  aria-label=${this.text('signLanguage')}
                   aria-pressed=${this.signLanguageOpen ? 'true' : 'false'}
                 >
                   <span aria-hidden="true">🤟</span>
-                  <span class="visually-hidden">Ethiopian Sign Language</span>
+                  <span class="visually-hidden">${this.text('signLanguage')}</span>
                 </button>`
               : nothing
           }
@@ -1214,11 +1308,11 @@ export class SavannaPlayer extends LitElement {
                   type="button"
                   class="control-btn audio-description-btn"
                   @click=${this.toggleAudioDescription}
-                  aria-label="Audio description"
+                  aria-label=${this.text('audioDescription')}
                   aria-pressed=${this.audioDescriptionEnabled ? 'true' : 'false'}
                 >
                   <span aria-hidden="true">AD</span>
-                  <span class="visually-hidden">Audio description</span>
+                  <span class="visually-hidden">${this.text('audioDescription')}</span>
                 </button>`
               : nothing
           }
@@ -1229,28 +1323,24 @@ export class SavannaPlayer extends LitElement {
             aria-controls="shortcut-help"
             @click=${this.toggleShortcutHelp}
           >
-            Keyboard shortcuts
+            ${this.text('shortcuts')}
           </button>
         </div>
         <div
           id="shortcut-help"
           class="shortcut-help"
           role="region"
-          aria-label="Keyboard shortcuts"
+          aria-label=${this.text('shortcuts')}
           ?hidden=${!this.shortcutHelpOpen}
         >
           <ul>
-            <li>Space plays or pauses. Space activates a focused button.</li>
-            <li>Enter opens a focused link.</li>
-            <li>Left and Right arrows seek backward and forward.</li>
-            <li>Up and Down arrows change the volume.</li>
-            <li>M mutes or unmutes.</li>
-            <li>F enters or leaves fullscreen.</li>
-            <li>
-              When the sign-language move handle is focused, arrow keys move the window, and Shift
-              with an arrow key resizes it. When the resize handle is focused, arrow keys resize the
-              window. Those arrow keys also reach the player shortcuts.
-            </li>
+            <li>${this.text('helpSpace')}</li>
+            <li>${this.text('helpEnter')}</li>
+            <li>${this.text('helpSeek')}</li>
+            <li>${this.text('helpVolume')}</li>
+            <li>${this.text('helpMute')}</li>
+            <li>${this.text('helpFullscreen')}</li>
+            <li>${this.text('helpSign')}</li>
           </ul>
         </div>
         ${this.status === 'ready' ? this.renderReadingTools() : nothing} ${this.renderChapters()}
@@ -1260,6 +1350,7 @@ export class SavannaPlayer extends LitElement {
                 .segments=${this.transcriptSegments}
                 .currentTime=${this.currentTime}
                 .language=${this.transcriptLanguage}
+                .interfaceLang=${this.lang}
                 ?reduced-motion=${this.reducedMotion}
                 @savanna-transcript-seek=${this.onTranscriptSeek}
                 @savanna-transcript-language=${this.onTranscriptLanguage}
@@ -1269,8 +1360,8 @@ export class SavannaPlayer extends LitElement {
         }
         ${this.status === 'ready' ? this.renderBookmarks() : nothing}
         ${this.status === 'ready' && this.textLessonOpen ? this.renderTextLesson() : nothing}
-        ${renderLessonDocuments(this.documentLinks)} ${this.renderCaptionControls()}
-        ${this.renderOfflineControls()}
+        ${renderLessonDocuments(this.documentLinks, undefined, this.lang)}
+        ${this.renderCaptionControls()} ${this.renderOfflineControls()}
       </section>
     `;
   }
@@ -1299,7 +1390,7 @@ export class SavannaPlayer extends LitElement {
           class="control-btn download-transcript-btn"
           @click=${this.downloadTranscript}
         >
-          Download transcript
+          ${this.text('downloadTranscript')}
         </button>
         <button
           type="button"
@@ -1308,7 +1399,7 @@ export class SavannaPlayer extends LitElement {
           aria-controls="text-lesson"
           @click=${this.toggleTextLesson}
         >
-          Text lesson
+          ${this.text('textLesson')}
         </button>
         <span class="reading-status" role="status" aria-live="polite"
           >${this.transcriptExportMessage}</span
@@ -1323,7 +1414,7 @@ export class SavannaPlayer extends LitElement {
     if (chapters.length === 0) return nothing;
     return html`
       <nav class="chapters" aria-labelledby="chapters-heading">
-        <h2 id="chapters-heading">Chapters</h2>
+        <h2 id="chapters-heading">${this.text('chapters')}</h2>
         <ol>
           ${chapters.map(
             (chapter) => html`
@@ -1333,9 +1424,13 @@ export class SavannaPlayer extends LitElement {
                   class="chapter-btn"
                   @click=${() => this.seekFromUser(chapter.start)}
                 >
-                  <span class="chapter-name">${chapter.name}</span>
+                  <span class="chapter-name" lang=${this.lesson?.language || nothing}
+                    >${chapter.name}</span
+                  >
                   <span class="chapter-time">
-                    <span class="visually-hidden">starts at </span>${formatTime(chapter.start)}
+                    <span class="visually-hidden">${this.text('startsAt')} </span>${formatTime(
+                      chapter.start,
+                    )}
                   </span>
                 </button>
               </li>
@@ -1349,11 +1444,11 @@ export class SavannaPlayer extends LitElement {
   private renderBookmarks() {
     const language = this.transcriptLanguage;
     return html`
-      <section class="bookmarks" aria-labelledby="bookmarks-heading" lang=${language}>
-        <h2 id="bookmarks-heading">Bookmarks</h2>
+      <section class="bookmarks" aria-labelledby="bookmarks-heading">
+        <h2 id="bookmarks-heading">${this.text('bookmarks')}</h2>
         ${
           this.bookmarks.length === 0
-            ? html`<p class="bookmark-empty">No bookmarks yet.</p>`
+            ? html`<p class="bookmark-empty">${this.text('noBookmarks')}</p>`
             : html`
                 <ul>
                   ${this.bookmarks.map(
@@ -1365,18 +1460,21 @@ export class SavannaPlayer extends LitElement {
                           @click=${() => this.seekFromUser(bookmark.start)}
                         >
                           <span class="sentence-time">
-                            <span class="visually-hidden">starts at </span
+                            <span class="visually-hidden">${this.text('startsAt')} </span
                             >${formatTime(bookmark.start)}
                           </span>
-                          <span>${bookmark.text}</span>
+                          <span lang=${language}>${bookmark.text}</span>
                         </button>
                         <button
                           type="button"
                           class="control-btn bookmark-remove"
-                          aria-label=${`Remove bookmark at ${formatTime(bookmark.start)}: ${bookmark.text}`}
+                          aria-label=${this.text('removeBookmark', {
+                            time: formatTime(bookmark.start),
+                            text: bookmark.text,
+                          })}
                           @click=${() => this.deleteBookmark(bookmark.start)}
                         >
-                          Remove
+                          ${this.text('remove')}
                         </button>
                       </li>
                     `,
@@ -1396,11 +1494,11 @@ export class SavannaPlayer extends LitElement {
     const segments = this.transcriptSegments;
     return html`
       <section id="text-lesson" class="text-lesson" aria-labelledby="text-lesson-heading">
-        <h2 id="text-lesson-heading">Text lesson</h2>
+        <h2 id="text-lesson-heading">${this.text('textLesson')}</h2>
         <div class="text-lesson-transcript" lang=${language}>
           ${
             segments.length === 0
-              ? html`<p class="text-lesson-empty">No transcript is available in this language.</p>`
+              ? html`<p class="text-lesson-empty">${this.text('textLessonEmpty')}</p>`
               : segments.map(
                   (segment) => html`
                     <div class="text-lesson-row">
@@ -1410,7 +1508,7 @@ export class SavannaPlayer extends LitElement {
                         @click=${() => this.seekFromUser(segment.start)}
                       >
                         <span class="sentence-time">
-                          <span class="visually-hidden">starts at </span
+                          <span class="visually-hidden">${this.text('startsAt')} </span
                           >${formatTime(segment.start)}
                         </span>
                         <span>${segment.text}</span>
@@ -1418,18 +1516,18 @@ export class SavannaPlayer extends LitElement {
                       <button
                         type="button"
                         class="control-btn text-lesson-bookmark"
-                        lang=${language}
-                        aria-label=${`Bookmark sentence: ${segment.text}`}
+                        lang=${uiLanguage(this.lang)}
+                        aria-label=${this.text('bookmarkSentence', { text: segment.text })}
                         @click=${() => this.saveSentenceBookmark(segment.start, segment.text)}
                       >
-                        Bookmark
+                        ${this.text('bookmark')}
                       </button>
                     </div>
                   `,
                 )
           }
         </div>
-        ${renderLessonDocuments(this.documentLinks, 'text-lesson-documents-heading')}
+        ${renderLessonDocuments(this.documentLinks, 'text-lesson-documents-heading', this.lang)}
       </section>
     `;
   }
@@ -1441,7 +1539,8 @@ export class SavannaPlayer extends LitElement {
   private downloadTranscript = (): void => {
     const documentText = transcriptDocument(this.transcriptSegments);
     if (documentText === null) {
-      this.transcriptExportMessage = 'There is no transcript to download.';
+      this.exportState = 'empty';
+      this.transcriptExportMessage = exportStatusMessage(this.exportState, this.lang);
       return;
     }
     const filename = transcriptFilename(this.lessonId, this.transcriptLanguage);
@@ -1456,9 +1555,11 @@ export class SavannaPlayer extends LitElement {
       anchor.hidden = true;
       this.renderRoot.append(anchor);
       anchor.click();
-      this.transcriptExportMessage = 'Transcript downloaded.';
+      this.exportState = 'downloaded';
+      this.transcriptExportMessage = exportStatusMessage(this.exportState, this.lang);
     } catch {
-      this.transcriptExportMessage = 'The transcript could not be downloaded.';
+      this.exportState = 'failed';
+      this.transcriptExportMessage = exportStatusMessage(this.exportState, this.lang);
     } finally {
       anchor?.remove();
       if (url !== null) URL.revokeObjectURL(url);
@@ -1474,13 +1575,15 @@ export class SavannaPlayer extends LitElement {
   private saveSentenceBookmark(start: number, text: string): void {
     const result = addBookmark(this.lessonId, this.transcriptLanguage, { start, text });
     this.bookmarks = result.bookmarks;
-    this.bookmarkMessage = bookmarkStatusMessage(result.status);
+    this.bookmarkState = result.status;
+    this.bookmarkMessage = bookmarkStatusMessage(result.status, this.lang);
   }
 
   private deleteBookmark(start: number): void {
     const result = removeBookmark(this.lessonId, this.transcriptLanguage, start);
     this.bookmarks = result.bookmarks;
-    this.bookmarkMessage = bookmarkStatusMessage(result.status);
+    this.bookmarkState = result.status;
+    this.bookmarkMessage = bookmarkStatusMessage(result.status, this.lang);
   }
 
   private onTranscriptLanguage = (event: CustomEvent<TranscriptLanguageDetail>): void => {
@@ -1503,9 +1606,9 @@ export class SavannaPlayer extends LitElement {
     );
     return html`
       <fieldset class="caption-settings">
-        <legend>Captions</legend>
+        <legend>${this.text('captions')}</legend>
         <span class="caption-field">
-          <label for="caption-enabled">Show captions</label>
+          <label for="caption-enabled">${this.text('showCaptions')}</label>
           <input
             id="caption-enabled"
             type="checkbox"
@@ -1514,20 +1617,22 @@ export class SavannaPlayer extends LitElement {
           />
         </span>
         <span class="caption-field">
-          <label for="caption-language">Language</label>
+          <label for="caption-language">${this.text('captionLanguage')}</label>
           <select
             id="caption-language"
             .value=${settings.language}
             @change=${this.onCaptionLanguage}
           >
-            <option value="en" ?selected=${settings.language === 'en'}>English</option>
+            <option value="en" ?selected=${settings.language === 'en'}>
+              ${this.text('english')}
+            </option>
             <option value="am" lang="am" ?selected=${settings.language === 'am'}>
-              Amharic (አማርኛ)
+              ${this.text('amharic')}
             </option>
           </select>
         </span>
         <span class="caption-field">
-          <label for="caption-size">Caption size</label>
+          <label for="caption-size">${this.text('captionSize')}</label>
           <input
             id="caption-size"
             type="range"
@@ -1542,7 +1647,7 @@ export class SavannaPlayer extends LitElement {
           <span class="caption-value" aria-hidden="true">${size}%</span>
         </span>
         <span class="caption-field">
-          <label for="caption-text">Text color</label>
+          <label for="caption-text">${this.text('textColor')}</label>
           <input
             id="caption-text"
             class="caption-color"
@@ -1553,7 +1658,7 @@ export class SavannaPlayer extends LitElement {
           />
         </span>
         <span class="caption-field">
-          <label for="caption-background">Background color</label>
+          <label for="caption-background">${this.text('backgroundColor')}</label>
           <input
             id="caption-background"
             class="caption-color"
@@ -1565,8 +1670,8 @@ export class SavannaPlayer extends LitElement {
         </span>
         <span class="caption-field">
           <label for="caption-contrast">
-            High contrast
-            <span class="visually-hidden">Black text on a yellow background</span>
+            ${this.text('highContrast')}
+            <span class="visually-hidden">${this.text('highContrastHint')}</span>
           </label>
           <input
             id="caption-contrast"
@@ -1663,9 +1768,11 @@ export class SavannaPlayer extends LitElement {
       const clipboard = navigator.clipboard;
       if (typeof clipboard?.writeText !== 'function') throw new Error('clipboard unavailable');
       await clipboard.writeText(href);
-      this.linkMessage = 'Link copied';
+      this.linkState = 'copied';
+      this.linkMessage = this.text('linkCopied');
     } catch {
-      this.linkMessage = 'Could not copy the link';
+      this.linkState = 'failed';
+      this.linkMessage = this.text('linkCopyFailed');
     }
   };
 
@@ -1800,7 +1907,9 @@ export class SavannaPlayer extends LitElement {
     this.transcriptRequestId += 1;
     this.transcriptSegments = [];
     this.transcriptLanguage = transcriptLanguageOf(this.captionLanguage);
+    this.bookmarkState = '';
     this.bookmarkMessage = '';
+    this.exportState = '';
     this.transcriptExportMessage = '';
     this.textLessonOpen = false;
 
@@ -1815,7 +1924,7 @@ export class SavannaPlayer extends LitElement {
     const controller = new AbortController();
     this.abortController = controller;
     const requestId = ++this.requestId;
-    this.setOutcome('loading', `Loading lesson ${lessonId}.`, null);
+    this.setOutcome('loading', this.text('loadingLesson', { id: lessonId }), null);
     void this.finishLoad(new LessonClient(apiBase), lessonId, controller, requestId);
   }
 
@@ -1828,7 +1937,7 @@ export class SavannaPlayer extends LitElement {
     try {
       const lesson = await client.getLesson(lessonId, controller.signal);
       if (!this.isCurrent(requestId, controller)) return;
-      const outcome = describeLesson(lesson);
+      const outcome = describeLesson(lesson, this.lang);
       this.setOutcome(outcome.status, outcome.message, lesson);
       if (outcome.status === 'ready') void this.refreshOfflineStatus();
     } catch (error: unknown) {
@@ -1918,13 +2027,22 @@ function transcriptLanguageOf(value: string): 'en' | 'am' {
   return value === 'am' ? 'am' : 'en';
 }
 
-function describeLesson(lesson: Lesson): { status: 'ready' | 'empty'; message: string } {
+function describeLesson(
+  lesson: Lesson,
+  lang: string,
+): { status: 'ready' | 'empty'; message: string } {
   const video = lesson.media?.video;
   if (typeof video !== 'string' || video.trim() === '') {
-    return { status: 'empty', message: EMPTY_LESSON_MESSAGE };
+    return { status: 'empty', message: interfaceText(lang, 'emptyLesson') };
   }
   const title = lesson.title.trim();
-  return { status: 'ready', message: title === '' ? 'Lesson ready.' : `Lesson ready: ${title}.` };
+  return {
+    status: 'ready',
+    message:
+      title === ''
+        ? interfaceText(lang, 'lessonReady')
+        : interfaceText(lang, 'lessonReadyNamed', { title }),
+  };
 }
 
 function isAbortError(error: unknown): boolean {
