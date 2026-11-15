@@ -22,7 +22,6 @@ function lessonWithSignLanguage(): Lesson {
     captions: [],
     transcripts: [],
     documents: [],
-    chapters: [],
   };
 }
 
@@ -309,6 +308,5 @@ function lessonWithAudioDescription(url: string): Lesson {
     captions: [],
     transcripts: [],
     documents: [],
-    chapters: [],
   };
 }

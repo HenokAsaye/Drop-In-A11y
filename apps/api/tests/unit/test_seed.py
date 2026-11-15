@@ -52,11 +52,6 @@ async def test_seed_twice_does_not_duplicate_rows(session: AsyncSession) -> None
     assert lesson is not None
     assert lesson.video_path == "videos/networking-101.mp4"
     assert lesson.poster_path == "videos/networking-101-poster.jpg"
-    assert lesson.chapters == [
-        {"name": "Welcome", "start": 0},
-        {"name": "How computers connect", "start": 45},
-        {"name": "Addresses on a network", "start": 90},
-    ]
     assert certificate is not None
     assert career is not None
     assert career.certificate_id == certificate.id

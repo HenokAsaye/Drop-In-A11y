@@ -24,11 +24,6 @@ _TRANSCRIPTS = (
         [{"start": 0, "end": 4, "text": "እንኳን ወደ ኔትወርክ ትምህርታችን በደህና መጡ።"}],
     ),
 )
-_CHAPTERS = (
-    {"name": "Welcome", "start": 0},
-    {"name": "How computers connect", "start": 45},
-    {"name": "Addresses on a network", "start": 90},
-)
 
 
 async def seed(session: AsyncSession) -> None:
@@ -45,7 +40,6 @@ async def seed(session: AsyncSession) -> None:
                 sign_language_path="sign-language/networking-101-ethsl.mp4",
                 audio_description_path="audio-description/networking-101-description.mp3",
                 poster_path="videos/networking-101-poster.jpg",
-                chapters=list(_CHAPTERS),
             )
         )
         await session.flush()
