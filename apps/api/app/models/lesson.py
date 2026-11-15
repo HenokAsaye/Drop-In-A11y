@@ -1,8 +1,9 @@
 from typing import Any
 
 from sqlalchemy import JSON, ForeignKey, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
+from app.core.urls import require_media_path
 from app.db.base import Base, TimestampMixin
 
 
@@ -32,6 +33,17 @@ class Lesson(TimestampMixin, Base):
         back_populates="lesson", cascade="all, delete-orphan", order_by="LessonDocument.position"
     )
 
+    @validates(
+        "video_path",
+        "audio_path",
+        "sign_language_path",
+        "audio_description_path",
+        "poster_path",
+        "offline_html_path",
+    )
+    def _check_media_path(self, _key: str, value: str | None) -> str | None:
+        return require_media_path(value)
+
 
 class CaptionTrack(Base):
     __tablename__ = "caption_tracks"
@@ -44,6 +56,10 @@ class CaptionTrack(Base):
     path: Mapped[str] = mapped_column(String(512))
 
     lesson: Mapped[Lesson] = relationship(back_populates="captions")
+
+    @validates("path")
+    def _check_media_path(self, _key: str, value: str | None) -> str | None:
+        return require_media_path(value)
 
 
 class Transcript(Base):
@@ -72,3 +88,7 @@ class LessonDocument(Base):
     position: Mapped[int] = mapped_column(default=0)
 
     lesson: Mapped[Lesson] = relationship(back_populates="documents")
+
+    @validates("html_path", "pdf_path")
+    def _check_media_path(self, _key: str, value: str | None) -> str | None:
+        return require_media_path(value)
