@@ -198,6 +198,29 @@
         "title": "CertificateVerificationOut",
         "type": "object"
       },
+      "Chapter": {
+        "description": "A named point in the lesson. Chapters do not have an end time.",
+        "properties": {
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "start": {
+            "description": "Chapter start time in seconds",
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "start"
+        ],
+        "title": "Chapter",
+        "type": "object"
+      },
       "ErrorResponse": {
         "properties": {
           "code": {
@@ -313,6 +336,13 @@
             "title": "Captions",
             "type": "array"
           },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/Chapter"
+            },
+            "title": "Chapters",
+            "type": "array"
+          },
           "description": {
             "title": "Description",
             "type": "string"
@@ -358,7 +388,8 @@
           "media",
           "captions",
           "transcripts",
-          "documents"
+          "documents",
+          "chapters"
         ],
         "title": "LessonOut",
         "type": "object"

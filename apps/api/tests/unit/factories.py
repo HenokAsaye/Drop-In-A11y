@@ -89,4 +89,5 @@ def networking_lesson_json() -> dict[str, object]:
                 "pdf": f"{media}/networking-101-notes.pdf",
             }
         ],
+        "chapters": [],
     }

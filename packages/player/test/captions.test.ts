@@ -29,6 +29,7 @@ function lessonWithCaptions(id = 'networking-101'): Lesson {
     ],
     transcripts: [],
     documents: [],
+    chapters: [],
   };
 }
 
