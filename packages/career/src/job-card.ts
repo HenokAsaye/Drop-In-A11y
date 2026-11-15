@@ -83,6 +83,7 @@ export class JobCard extends LitElement {
 
     const title = present(job.title);
     const organization = present(job.organization);
+    const location = present(job.location);
     const description = present(job.description);
     const accommodations = present(job.accommodations);
     const applicationUrl = webUrl(job.applicationUrl, document.baseURI);
@@ -93,6 +94,7 @@ export class JobCard extends LitElement {
       <article>
         ${renderTitle(this.headingLevel, title)}
         ${organization === '' ? nothing : html`<p>${organization}</p>`}
+        ${location === '' ? nothing : html`<p>${location}</p>`}
         ${description === '' ? nothing : html`<p id="job-description">${description}</p>`}
         ${accommodations === '' ? nothing : html`<p>${accommodations}</p>`}
         ${applicationUrl === null ? nothing : html`<a href=${applicationUrl}>${applyName(title, organization)}</a>`}

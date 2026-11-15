@@ -1,7 +1,7 @@
 import type { Career } from '@savanna/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CertificateLink, JobCard } from '../src/index';
+import { CertificateLink, JobCard, filterCareers } from '../src/index';
 
 const job: Career = {
   id: 1,
@@ -180,64 +180,122 @@ function statusRegion(link: CertificateLink): HTMLElement {
   return region;
 }
 
-describe('certificate verification (spec 4.8)', () => {
-  it('shows "verified" only after the verify endpoint reports valid', async () => {
+describe('certificate verification (spec 4.8, Issue #42)', () => {
+  it('shows "Valid" with details only after the verify endpoint reports valid', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith('/cert%2F1/verify')) {
-        return Promise.resolve(jsonResponse({ valid: true, status: 'valid' }));
+        return Promise.resolve(
+          jsonResponse({
+            valid: true,
+            status: 'valid',
+            holderName: 'Sara Bekele',
+            courseTitle: 'Introduction to Networking',
+            issuer: 'Savanna',
+          }),
+        );
       }
-      return Promise.resolve(jsonResponse({ valid: true, status: 'revoked' }));
+      return Promise.resolve(
+        jsonResponse({
+          valid: true,
+          status: 'revoked',
+        }),
+      );
     });
     vi.stubGlobal('fetch', fetchMock);
 
     const link = await mountCertificate('cert/1', 'https://api.example/bridge');
-    await vi.waitFor(() => expect(statusRegion(link).textContent).toBe('Verified'));
+    await vi.waitFor(() =>
+      expect(statusRegion(link).textContent).toBe(
+        'Valid: Certificate for Sara Bekele in Introduction to Networking issued by Savanna.',
+      ),
+    );
+    expect(statusRegion(link).getAttribute('aria-label')).toBe(
+      'Valid: Certificate for Sara Bekele in Introduction to Networking issued by Savanna.',
+    );
+    expect(statusRegion(link).textContent?.toLowerCase()).not.toContain('verified');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
       'https://api.example/bridge/api/v1/certificates/cert%2F1/verify',
     );
 
     link.certificateId = 'cert-mismatch';
-    await vi.waitFor(() => expect(statusRegion(link).textContent).toBe('Verification unavailable'));
-    expect(statusRegion(link).textContent).not.toBe('Verified');
+    await vi.waitFor(() =>
+      expect(statusRegion(link).textContent).toBe('Not found: Certificate was not found.'),
+    );
+    expect(statusRegion(link).textContent).not.toContain('Valid');
   });
 
-  it('shows revoked certificates as not valid', async () => {
+  it('shows revoked certificates as "Revoked" with details', async () => {
     vi.stubGlobal('fetch', () =>
-      Promise.resolve(jsonResponse({ valid: false, status: 'revoked' })),
+      Promise.resolve(
+        jsonResponse({
+          valid: false,
+          status: 'revoked',
+          holderName: 'Abel Tadesse',
+          courseTitle: 'Introduction to Networking',
+          issuer: 'Savanna',
+        }),
+      ),
     );
     const link = await mountCertificate('cert-revoked', 'https://api.example');
-    await vi.waitFor(() => expect(statusRegion(link).textContent).toBe('Not valid'));
+    await vi.waitFor(() =>
+      expect(statusRegion(link).textContent).toBe(
+        'Revoked: Certificate for Abel Tadesse in Introduction to Networking issued by Savanna.',
+      ),
+    );
+    expect(statusRegion(link).getAttribute('aria-label')).toBe(
+      'Revoked: Certificate for Abel Tadesse in Introduction to Networking issued by Savanna.',
+    );
   });
 
-  it('announces the verification result to screen readers', async () => {
-    vi.stubGlobal('fetch', () => Promise.resolve(jsonResponse({ valid: true, status: 'valid' })));
+  it('announces the verification result to screen readers with an accessible name', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(
+        jsonResponse({
+          valid: true,
+          status: 'valid',
+          holderName: 'Sara Bekele',
+          courseTitle: 'Introduction to Networking',
+          issuer: 'Savanna',
+        }),
+      ),
+    );
     const link = await mountCertificate('cert-valid', 'https://api.example');
     const region = statusRegion(link);
 
     expect(region.getAttribute('role')).toBe('status');
     expect(region.getAttribute('aria-live')).toBe('polite');
-    await vi.waitFor(() => expect(region.textContent).toBe('Verified'));
+    await vi.waitFor(() =>
+      expect(region.textContent).toBe(
+        'Valid: Certificate for Sara Bekele in Introduction to Networking issued by Savanna.',
+      ),
+    );
+    expect(region.getAttribute('aria-label')).toBe(
+      'Valid: Certificate for Sara Bekele in Introduction to Networking issued by Savanna.',
+    );
   });
 
-  it('shows verification unavailable when the response is not proof or the request fails', async () => {
+  it('shows "Not found" when the response is not proof or the request fails', async () => {
     vi.stubGlobal('fetch', () => Promise.resolve(jsonResponse({ detail: 'missing' }, 404)));
     const missing = await mountCertificate('missing-certificate', 'https://api.example');
     await vi.waitFor(() =>
-      expect(statusRegion(missing).textContent).toBe('Verification unavailable'),
+      expect(statusRegion(missing).textContent).toBe('Not found: Certificate was not found.'),
+    );
+    expect(statusRegion(missing).getAttribute('aria-label')).toBe(
+      'Not found: Certificate was not found.',
     );
 
     vi.stubGlobal('fetch', () => Promise.reject(new Error('offline')));
     const offline = await mountCertificate('offline-certificate', 'https://api.example');
     await vi.waitFor(() =>
-      expect(statusRegion(offline).textContent).toBe('Verification unavailable'),
+      expect(statusRegion(offline).textContent).toBe('Not found: Certificate was not found.'),
     );
 
     vi.stubGlobal('fetch', () => Promise.resolve(jsonResponse({ valid: true })));
     const partial = await mountCertificate('partial-certificate', 'https://api.example');
     await vi.waitFor(() =>
-      expect(statusRegion(partial).textContent).toBe('Verification unavailable'),
+      expect(statusRegion(partial).textContent).toBe('Not found: Certificate was not found.'),
     );
   });
 
@@ -246,7 +304,7 @@ describe('certificate verification (spec 4.8)', () => {
     vi.stubGlobal('fetch', fetchMock);
     const link = await mountCertificate();
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(statusRegion(link).textContent).toBe('Verification unavailable');
+    expect(statusRegion(link).textContent).toBe('Not found: Certificate was not found.');
 
     link.certificateId = 'cert-valid';
     await link.updateComplete;
@@ -277,13 +335,29 @@ describe('certificate verification (spec 4.8)', () => {
     if (first === undefined || second === undefined)
       throw new Error('verification requests were not started');
 
-    pending.get(first)?.(jsonResponse({ valid: true, status: 'valid' }));
+    pending.get(first)?.(
+      jsonResponse({
+        valid: true,
+        status: 'valid',
+        holderName: 'Sara Bekele',
+        courseTitle: 'Introduction to Networking',
+        issuer: 'Savanna',
+      }),
+    );
     await link.updateComplete;
     await Promise.resolve();
-    expect(statusRegion(link).textContent).not.toBe('Verified');
+    expect(statusRegion(link).textContent).not.toContain('Valid');
 
-    pending.get(second)?.(jsonResponse({ valid: false, status: 'revoked' }));
-    await vi.waitFor(() => expect(statusRegion(link).textContent).toBe('Not valid'));
+    pending.get(second)?.(
+      jsonResponse({
+        valid: false,
+        status: 'revoked',
+        holderName: 'Abel Tadesse',
+        courseTitle: 'Introduction to Networking',
+        issuer: 'Savanna',
+      }),
+    );
+    await vi.waitFor(() => expect(statusRegion(link).textContent).toContain('Revoked'));
 
     link.requestUpdate();
     await link.updateComplete;
@@ -318,10 +392,18 @@ describe('certificate verification (spec 4.8)', () => {
     const link = await mountCertificate('cert-valid', 'https://api.example');
     await vi.waitFor(() => expect(resolveRequest).toBeTypeOf('function'));
     link.remove();
-    resolveRequest?.(jsonResponse({ valid: true, status: 'valid' }));
+    resolveRequest?.(
+      jsonResponse({
+        valid: true,
+        status: 'valid',
+        holderName: 'Sara Bekele',
+        courseTitle: 'Introduction to Networking',
+        issuer: 'Savanna',
+      }),
+    );
     await link.updateComplete;
     await Promise.resolve();
-    expect(statusRegion(link).textContent).not.toBe('Verified');
+    expect(statusRegion(link).textContent).not.toContain('Valid');
   });
 
   it('requests verification again after reconnecting', async () => {
@@ -340,12 +422,86 @@ describe('certificate verification (spec 4.8)', () => {
     document.body.append(link);
     await vi.waitFor(() => expect(pending).toHaveLength(2));
 
-    pending[1]?.(jsonResponse({ valid: true, status: 'valid' }));
-    await vi.waitFor(() => expect(statusRegion(link).textContent).toBe('Verified'));
+    pending[1]?.(
+      jsonResponse({
+        valid: true,
+        status: 'valid',
+        holderName: 'Sara Bekele',
+        courseTitle: 'Introduction to Networking',
+        issuer: 'Savanna',
+      }),
+    );
+    await vi.waitFor(() => expect(statusRegion(link).textContent).toContain('Valid'));
 
-    pending[0]?.(jsonResponse({ valid: false, status: 'revoked' }));
+    pending[0]?.(
+      jsonResponse({
+        valid: false,
+        status: 'revoked',
+        holderName: 'Abel Tadesse',
+        courseTitle: 'Introduction to Networking',
+        issuer: 'Savanna',
+      }),
+    );
     await link.updateComplete;
     await Promise.resolve();
-    expect(statusRegion(link).textContent).toBe('Verified');
+    expect(statusRegion(link).textContent).toContain('Valid');
+  });
+});
+
+describe('filterCareers (Issue #42)', () => {
+  const jobs: Career[] = [
+    {
+      id: 1,
+      title: 'Network technician',
+      organization: 'Savanna Labs',
+      description: 'Support campus networks.',
+      location: 'Addis Ababa',
+      applicationUrl: 'https://jobs.example/1',
+      audioSummaryUrl: null,
+      accommodations: 'Sign language interpretation available.',
+      certificateVerificationUrl: null,
+    },
+    {
+      id: 2,
+      title: 'Lab assistant',
+      organization: 'Savanna Labs',
+      description: 'Maintain lab equipment.',
+      location: 'Hawassa',
+      applicationUrl: 'https://jobs.example/2',
+      audioSummaryUrl: null,
+      accommodations: null,
+      certificateVerificationUrl: null,
+    },
+    {
+      id: 3,
+      title: 'Systems engineer',
+      organization: 'Savanna Labs',
+      description: 'Cloud systems.',
+      location: 'Addis Ababa',
+      applicationUrl: 'https://jobs.example/3',
+      audioSummaryUrl: null,
+      accommodations: null,
+      certificateVerificationUrl: null,
+    },
+  ];
+
+  it('filters by location', () => {
+    expect(filterCareers(jobs, { location: 'Addis Ababa' })).toHaveLength(2);
+    expect(filterCareers(jobs, { location: 'Hawassa' })).toHaveLength(1);
+    expect(filterCareers(jobs, { location: 'Dire Dawa' })).toHaveLength(0);
+    expect(filterCareers(jobs, { location: '' })).toHaveLength(3);
+  });
+
+  it('filters by whether accommodation note is present', () => {
+    expect(filterCareers(jobs, { accommodationsOnly: true })).toHaveLength(1);
+    expect(filterCareers(jobs, { accommodationsOnly: true })[0]?.id).toBe(1);
+    expect(filterCareers(jobs, { accommodationsOnly: false })).toHaveLength(3);
+  });
+
+  it('filters by location and accommodations together', () => {
+    expect(filterCareers(jobs, { location: 'Addis Ababa', accommodationsOnly: true })).toHaveLength(
+      1,
+    );
+    expect(filterCareers(jobs, { location: 'Hawassa', accommodationsOnly: true })).toHaveLength(0);
   });
 });

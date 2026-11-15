@@ -1,9 +1,56 @@
 import { API_VERSION_PREFIX, type CertificateVerification } from '@savanna/contracts';
-import { LitElement, css, html } from 'lit';
+import { LitElement, css, html, nothing } from 'lit';
 
 export const CERTIFICATE_LINK_TAG = 'savanna-certificate-link';
 
-type VerificationOutcome = 'pending' | 'verified' | 'not-valid' | 'unavailable';
+export type VerificationOutcome = 'pending' | 'valid' | 'revoked' | 'not-found';
+
+export interface VerificationDescription {
+  sentence: string;
+  accessibleName: string;
+}
+
+export function describeVerification(
+  outcome: VerificationOutcome,
+  verification?: CertificateVerification,
+): VerificationDescription {
+  if (outcome === 'pending') {
+    return { sentence: '', accessibleName: '' };
+  }
+
+  const raw = verification as Record<string, unknown> | undefined;
+  const holder =
+    verification?.holderName?.trim() ||
+    (typeof raw?.['holder_name'] === 'string' ? raw['holder_name'].trim() : '');
+  const course =
+    verification?.courseTitle?.trim() ||
+    (typeof raw?.['course_title'] === 'string' ? raw['course_title'].trim() : '');
+  const issuer = verification?.issuer?.trim() || '';
+
+  const details =
+    holder !== '' && course !== '' && issuer !== ''
+      ? ` for ${holder} in ${course} issued by ${issuer}`
+      : holder !== '' && course !== ''
+        ? ` for ${holder} in ${course}`
+        : holder !== ''
+          ? ` for ${holder}`
+          : '';
+
+  if (outcome === 'valid') {
+    const sentence =
+      details !== '' ? `Valid: Certificate${details}.` : 'Valid: Certificate is valid.';
+    return { sentence, accessibleName: sentence };
+  }
+
+  if (outcome === 'revoked') {
+    const sentence =
+      details !== '' ? `Revoked: Certificate${details}.` : 'Revoked: Certificate has been revoked.';
+    return { sentence, accessibleName: sentence };
+  }
+
+  const sentence = 'Not found: Certificate was not found.';
+  return { sentence, accessibleName: sentence };
+}
 
 /**
  * Link to a certificate verification result. Only a response from the verify endpoint counts as
@@ -69,7 +116,7 @@ export class CertificateLink extends LitElement {
       this.requestSerial += 1;
       this.activeKey = '';
       this.verification = undefined;
-      this.outcome = 'unavailable';
+      this.outcome = 'not-found';
       return;
     }
 
@@ -78,7 +125,7 @@ export class CertificateLink extends LitElement {
       this.requestSerial += 1;
       this.activeKey = '';
       this.verification = undefined;
-      this.outcome = 'unavailable';
+      this.outcome = 'not-found';
       return;
     }
 
@@ -92,9 +139,10 @@ export class CertificateLink extends LitElement {
   }
 
   override render() {
+    const { sentence, accessibleName } = describeVerification(this.outcome, this.verification);
     // Keep the status text free of template whitespace so the live region announces the result.
     // prettier-ignore
-    return html`<p role="status" aria-live="polite" aria-atomic="true">${labelFor(this.outcome)}</p>`;
+    return html`<p role="status" aria-live="polite" aria-atomic="true" aria-label=${accessibleName || nothing}>${sentence}</p>`;
   }
 
   private async loadVerification(url: string, serial: number): Promise<void> {
@@ -105,7 +153,7 @@ export class CertificateLink extends LitElement {
       });
       if (!this.isCurrent(serial)) return;
       if (!response.ok) {
-        this.finish(serial, 'unavailable', undefined);
+        this.finish(serial, 'not-found', undefined);
         return;
       }
       const body: unknown = await response.json();
@@ -114,11 +162,11 @@ export class CertificateLink extends LitElement {
       this.finish(
         serial,
         outcome,
-        outcome === 'unavailable' ? undefined : (body as CertificateVerification),
+        outcome === 'not-found' ? undefined : (body as CertificateVerification),
       );
     } catch {
       if (!this.isCurrent(serial)) return;
-      this.finish(serial, 'unavailable', undefined);
+      this.finish(serial, 'not-found', undefined);
     }
   }
 
@@ -137,25 +185,12 @@ export class CertificateLink extends LitElement {
   }
 }
 
-function labelFor(outcome: VerificationOutcome): string {
-  switch (outcome) {
-    case 'verified':
-      return 'Verified';
-    case 'not-valid':
-      return 'Not valid';
-    case 'unavailable':
-      return 'Verification unavailable';
-    default:
-      return '';
-  }
-}
-
-function outcomeOf(body: unknown): VerificationOutcome {
-  if (typeof body !== 'object' || body === null) return 'unavailable';
+function outcomeOf(body: unknown): 'valid' | 'revoked' | 'not-found' {
+  if (typeof body !== 'object' || body === null) return 'not-found';
   const record = body as Record<string, unknown>;
-  if (record.valid === true && record.status === 'valid') return 'verified';
-  if (record.valid === false && record.status === 'revoked') return 'not-valid';
-  return 'unavailable';
+  if (record.valid === true && record.status === 'valid') return 'valid';
+  if (record.valid === false && record.status === 'revoked') return 'revoked';
+  return 'not-found';
 }
 
 function verificationUrl(apiBase: string, certificateId: string): string | undefined {

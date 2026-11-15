@@ -133,6 +133,119 @@ test.describe('automated accessibility (spec 11.2)', () => {
     await page.setViewportSize({ width: 320, height: 900 });
     await expectUsable();
   });
+
+  test('career list filters by location and accommodations from keyboard at 640px and 320px (Issue #42)', async ({
+    page,
+  }) => {
+    const jobs = [
+      {
+        id: 1,
+        title: 'Network Support Technician',
+        organization: 'Savanna Learning',
+        description: 'Help learners connect to campus networks.',
+        location: 'Addis Ababa',
+        applicationUrl: 'https://jobs.example/1',
+        audioSummaryUrl: null,
+        accommodations: 'Sign language interpretation available.',
+        certificateVerificationUrl: null,
+      },
+      {
+        id: 2,
+        title: 'Accessibility Specialist',
+        organization: 'Savanna Learning',
+        description: 'Design accessible materials.',
+        location: 'Hawassa',
+        applicationUrl: 'https://jobs.example/2',
+        audioSummaryUrl: null,
+        accommodations: null,
+        certificateVerificationUrl: null,
+      },
+      {
+        id: 3,
+        title: 'Remote Systems Admin',
+        organization: 'Savanna Learning',
+        description: 'Maintain cloud servers.',
+        location: 'Addis Ababa',
+        applicationUrl: 'https://jobs.example/3',
+        audioSummaryUrl: null,
+        accommodations: null,
+        certificateVerificationUrl: null,
+      },
+    ];
+
+    await page.route(
+      (url) => url.pathname === '/api/v1/careers',
+      async (route) => {
+        if (route.request().method() !== 'GET') {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: jobs, total: 3, limit: 20, offset: 0 }),
+        });
+      },
+    );
+
+    async function checkFilterAtWidth(width: number): Promise<void> {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/');
+
+      const cards = page.locator('savanna-job-card');
+      await expect(cards).toHaveCount(3);
+
+      const locationSelect = page.getByRole('combobox', { name: 'Location' });
+      const accommodationsCheck = page.getByRole('checkbox', { name: /accommodations/i });
+      const status = page.locator('#careers-status');
+
+      await expect(locationSelect).toBeVisible();
+      await expect(accommodationsCheck).toBeVisible();
+
+      // Filter by location
+      await locationSelect.focus();
+      await locationSelect.selectOption('Hawassa');
+      await expect(cards).toHaveCount(1);
+      await expect(cards.first()).toContainText('Accessibility Specialist');
+
+      // Filter by accommodations using keyboard: Hawassa job has none -> empty state
+      await accommodationsCheck.focus();
+      await page.keyboard.press('Space');
+      await expect(cards).toHaveCount(0);
+      await expect(status).toBeVisible();
+      await expect(status).toContainText('No career opportunities match your filters.');
+
+      // Toggle accommodations off with keyboard
+      await page.keyboard.press('Space');
+      await expect(cards).toHaveCount(1);
+
+      // Select Addis Ababa (has 2 jobs, 1 with accommodations)
+      await locationSelect.focus();
+      await locationSelect.selectOption('Addis Ababa');
+      await expect(cards).toHaveCount(2);
+
+      // Toggle accommodations on
+      await accommodationsCheck.focus();
+      await page.keyboard.press('Space');
+      await expect(cards).toHaveCount(1);
+      await expect(cards.first()).toContainText('Network Support Technician');
+
+      // Reset filters
+      await locationSelect.selectOption('');
+      await page.keyboard.press('Space');
+      await expect(cards).toHaveCount(3);
+
+      // Verify no horizontal overflow
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        ),
+      ).toBe(false);
+    }
+
+    await checkFilterAtWidth(640);
+    await checkFilterAtWidth(320);
+  });
   test('downloaded lesson works after going offline', async ({ page, context }) => {
     const lesson = {
       id: 'networking-101',
