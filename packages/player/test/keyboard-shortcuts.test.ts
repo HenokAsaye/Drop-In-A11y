@@ -153,6 +153,41 @@ describe('keyboard shortcuts (spec 5.1)', () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it.each([
+    ['a button', () => document.createElement('button')],
+    [
+      'an element with role="button"',
+      () => {
+        const element = document.createElement('div');
+        element.setAttribute('role', 'button');
+        element.tabIndex = 0;
+        return element;
+      },
+    ],
+  ])('leaves Space to %s so the focused control activates', (_name, create) => {
+    const player = document.createElement('div');
+    const shadow = player.attachShadow({ mode: 'open' });
+    const control = create();
+    shadow.append(control);
+    document.body.append(player);
+
+    const { action, event } = press(control, player, { key: ' ' });
+
+    expect(action).toBeNull();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('keeps the other shortcuts while a button has focus', () => {
+    const player = document.createElement('div');
+    const mute = document.createElement('button');
+    player.append(mute);
+    document.body.append(player);
+
+    expect(press(mute, player, { key: 'ArrowRight' }).action).toBe('seek-forward');
+    expect(press(mute, player, { key: 'm' }).action).toBe('toggle-mute');
+    expect(press(mute, player, { key: 'f' }).action).toBe('toggle-fullscreen');
+  });
+
   it('leaves unrelated keys to the browser', () => {
     const player = document.createElement('div');
     document.body.append(player);
