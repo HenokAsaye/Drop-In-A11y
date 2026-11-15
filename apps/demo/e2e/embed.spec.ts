@@ -78,7 +78,49 @@ test.describe('script-tag integration (spec 3, 11.1)', () => {
     await expect(page.getByLabel('Background color')).toHaveValue('#00aa00');
   });
 
-  test.fixme('sign-language window can be shown, moved and resized', async () => {});
+  test('sign-language window can be shown, moved and resized', async ({ page }) => {
+    await mockLesson(page);
+    await page.goto('/');
+
+    const toggle = page.getByRole('button', { name: 'Ethiopian Sign Language', exact: true });
+    const windowRegion = page.getByRole('region', { name: 'Ethiopian Sign Language interpreter' });
+    const host = page.locator('savanna-sign-language');
+    // Inline style is relative to the video wrapper, so page scrolling cannot skew it.
+    const box = () =>
+      host.evaluate((el: HTMLElement) => ({
+        x: parseFloat(el.style.left),
+        y: parseFloat(el.style.top),
+        width: parseFloat(el.style.width),
+        height: parseFloat(el.style.height),
+      }));
+    await expect(windowRegion).toBeHidden();
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(windowRegion).toBeVisible();
+
+    const before = await box();
+
+    const move = page.getByRole('button', { name: /Move sign language window/i });
+    await move.focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowDown');
+    const moved = await box();
+    expect(moved.x).toBeGreaterThan(before.x);
+    expect(moved.y).toBeGreaterThan(before.y);
+
+    const resize = page.getByRole('button', { name: /Resize sign language window/i });
+    await resize.focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowDown');
+    const resized = await box();
+    expect(resized.width).toBeGreaterThan(moved.width);
+    expect(resized.height).toBeGreaterThan(moved.height);
+
+    await page.getByRole('button', { name: /Close sign language window/i }).click();
+    await expect(windowRegion).toBeHidden();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  });
   test('clicking a transcript sentence seeks the video', async ({ page }) => {
     await mockLesson(page);
     await page.goto('/');
