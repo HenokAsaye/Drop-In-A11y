@@ -36,6 +36,12 @@ export const CAPTION_BACKGROUND_SWATCH = '#000000';
 
 export const CAPTION_SETTINGS_KEY = 'savanna.captionSettings';
 
+/** Device-wide playback speed, volume, and mute. Stored beside caption settings. */
+export const PLAYBACK_SETTINGS_KEY = 'savanna.playbackSettings';
+
+/** Last playback position, keyed by lesson id, on this device only. */
+export const LESSON_POSITIONS_KEY = 'savanna.lessonPositions';
+
 export const CAPTION_FONT_FAMILY =
   '"Noto Sans Ethiopic", "Abyssinica SIL", "Nyala", "Ebrima", sans-serif';
 
