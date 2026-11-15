@@ -53,7 +53,7 @@ test.describe('automated accessibility (spec 11.2)', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Introduction to Computer Networking' }),
     ).toBeVisible();
-    await expect(page.getByRole('img', { name: /laptop connected to a switch/ })).toBeVisible();
+    await expect(page.getByRole('img', { name: /computer connected to a switch/ })).toBeVisible();
 
     const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
     const blocking = results.violations.filter(
