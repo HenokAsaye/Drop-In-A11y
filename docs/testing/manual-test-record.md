@@ -123,6 +123,22 @@ emulation). No device or screen-reader session yet.
 | Offline in airplane mode on a real phone | Download, enable airplane mode, reopen lesson | Audio/text/HTML work without network | Pending | Needs a device session (Chrome Android) |
 | Download controls with a screen reader | Tab to the group, activate a download | Names, progress and result announced | Pending | Needs NVDA / TalkBack |
 
+## Session 2026-11-15 — Lesson notes HTML and tagged PDF (Spec 4.7)
+
+```
+Date:            2026-11-15
+Tester:          Browser session in this workspace
+Build / commit:  dev (uncommitted document work)
+AT + version:    None. NVDA, TalkBack, and PAC were not available.
+Browser + OS:    Chromium on Linux
+Lesson:          networking-101 notes, opened from the demo player
+```
+
+| Check | Steps | Expected | Result (Pass/Fail) | Notes / issue link |
+| ----- | ----- | -------- | ------------------ | ------------------ |
+| Documents HTML | Open Networking Notes, HTML from the player. Check the heading order, the diagram, the table, and both links. Run axe-core with the WCAG 2.2 AA tags. | One h1, headings in order, a described diagram, a table with headers, descriptive links, and no critical or serious axe violations. | Pass | The player link opened `networking-101-notes.html`. The page has `lang="en"`, one h1, h2 and h3 in order, the diagram alt text, column and row headers, and the links "Compare a switch and a router" and "Networking Notes PDF". axe-core reported no violations for wcag2a, wcag2aa, wcag21a, wcag21aa, and wcag22aa. |
+| Documents PDF | Inspect the tag structure of `networking-101-notes.pdf`. | Tagged, language set, real headings, table headers, figure description, and the same reading order as the HTML. | Pass for tags. Screen reader not run. | The file is marked tagged, `/Lang` is `en`, and the structure tree has H1, three H2s, one H3, paragraphs, a figure whose alt text matches the diagram, a table with a caption, header cells, data cells, and links. PAC and a screen reader were not available on this machine, so this is not a screen-reader pass. |
+
 ## Known limitations
 
 | Date | Limitation | Impact | Planned fix |
@@ -131,3 +147,4 @@ emulation). No device or screen-reader session yet.
 | 2026-11-14 | The Ethiopic face is requested from Google Fonts | If that request is blocked, captions use an Ethiopic font already on the computer (Noto Sans Ethiopic, Abyssinica SIL, Nyala, or Ebrima). This Linux machine already has Noto Sans Ethiopic, and that is what drew the letters. | None. The font stack is the fallback |
 | 2026-11-14 | The service worker only answers downloaded lesson files. The host page itself is not cached. | Reloading the host page while offline fails unless the host caches its own page. Only lesson files requested by an already-open page are proven to work offline. | Decide whether the worker should also cache the host page shell |
 | 2026-11-14 | Host sites must serve `savanna-sw.js` from their own origin. | Without it, downloads are saved but offline playback is not set up. The player says so. | Documented in `docs/integration.md` |
+| 2026-11-15 | The networking notes PDF was checked from its structure tree, not with PAC or a screen reader. | A screen reader may still find a reading-order or table-header problem that the structure tree does not show. | Repeat the PDF check with PAC and NVDA or TalkBack |
