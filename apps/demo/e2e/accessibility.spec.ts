@@ -6,9 +6,21 @@ import { mockLesson } from './fixtures';
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 test.describe('automated accessibility (spec 11.2)', () => {
-  test('axe-core reports zero critical and serious violations', async ({ page }) => {
+  test('axe-core reports zero critical and serious violations on the full player', async ({
+    page,
+  }) => {
+    await mockLesson(page);
+    await routeCareers(page);
     await page.goto('/');
     await page.waitForFunction(() => Boolean(customElements.get('savanna-player')));
+    // Wait for the lesson, transcript and careers so axe sees the whole page, not the empty shell.
+    await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Every device has an address.', exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('savanna-job-card')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Ethiopian Sign Language', exact: true }).click();
+    await page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
 
     const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
     const blocking = results.violations.filter(
@@ -167,7 +179,25 @@ test.describe('automated accessibility (spec 11.2)', () => {
       page.getByRole('region', { name: 'Ethiopian Sign Language interpreter' }),
     ).toBeHidden();
   });
-  test.fixme('content has no horizontal scrolling at 200% zoom (1280px at 2x)', async () => {});
+  test('content has no horizontal scrolling at 200% zoom (1280px at 2x)', async ({ page }) => {
+    await mockLesson(page);
+    await routeCareers(page);
+    // 200% zoom on a 1280px screen is a 640px CSS layout width. Open the sign window and the
+    // shortcut help too, since they are the widest parts of the player.
+    await page.setViewportSize({ width: 640, height: 900 });
+    await page.goto('/');
+    await expect(page.locator('savanna-job-card')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Ethiopian Sign Language', exact: true }).click();
+    await page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
+
+    const overflow = await page.evaluate(() => ({
+      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      player:
+        (document.querySelector('savanna-player')?.scrollWidth ?? 0) -
+        (document.querySelector('savanna-player')?.clientWidth ?? 0),
+    }));
+    expect(overflow).toEqual({ page: 0, player: 0 });
+  });
   test('career cards remain usable at 640px and 320px layout widths', async ({ page }) => {
     const job = {
       id: 1,
