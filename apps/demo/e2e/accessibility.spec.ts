@@ -1,5 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+import { mockLesson } from './fixtures';
 
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
@@ -71,8 +73,100 @@ test.describe('automated accessibility (spec 11.2)', () => {
     await expect(skipLink).toBeInViewport();
   });
 
-  test.fixme('every player control is reachable and operable by keyboard alone', async () => {});
-  test.fixme('there are no keyboard traps in the player or sign-language window', async () => {});
+  test('every player control is reachable and operable by keyboard alone', async ({ page }) => {
+    await mockLesson(page);
+    await page.goto('/');
+    const video = page.locator('savanna-player video.lesson-video');
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState))
+      .toBeGreaterThan(0);
+
+    // Reach every control with Tab alone.
+    for (const name of [
+      'Play',
+      'Seek',
+      'Mute',
+      'Volume',
+      /Playback speed/,
+      'Ethiopian Sign Language',
+      'Keyboard shortcuts',
+    ]) {
+      await tabTo(page, name);
+    }
+
+    // Operate them with Space, Enter and the documented shortcuts.
+    await tabTo(page, 'Play');
+    await page.keyboard.press('Space');
+    await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeFocused();
+
+    await page.keyboard.press('ArrowRight');
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
+      .toBeGreaterThan(0);
+
+    await page.keyboard.press('m');
+    await expect(page.getByRole('button', { name: 'Unmute', exact: true })).toBeVisible();
+
+    await tabTo(page, 'Ethiopian Sign Language');
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('button', { name: 'Ethiopian Sign Language', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    await tabTo(page, 'Keyboard shortcuts');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: 'Keyboard shortcuts' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+  });
+
+  test('there are no keyboard traps in the player or sign-language window', async ({ page }) => {
+    await mockLesson(page);
+    await routeCareers(page);
+    await page.goto('/');
+    await expect(page.locator('savanna-job-card')).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Ethiopian Sign Language', exact: true }).click();
+    await expect(
+      page.getByRole('region', { name: 'Ethiopian Sign Language interpreter' }),
+    ).toBeVisible();
+
+    // Tab forward from the top of the page: focus must pass the player and sign window
+    // and reach the career filters that follow them.
+    await page.locator('body').click({ position: { x: 1, y: 1 } });
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    const seen = new Set<string>();
+    for (let i = 0; i < 80; i += 1) {
+      await page.keyboard.press('Tab');
+      seen.add(await describeFocus(page));
+      if (
+        await page
+          .locator('#career-filter-location')
+          .evaluate((el) => el === document.activeElement)
+      ) {
+        break;
+      }
+    }
+    await expect(page.getByRole('combobox', { name: 'Location' })).toBeFocused();
+    expect([...seen].some((item) => item.includes('Move sign language window'))).toBe(true);
+    expect([...seen].some((item) => item.includes('Resize sign language window'))).toBe(true);
+
+    // Shift+Tab must walk back out the same way.
+    for (let i = 0; i < 80; i += 1) {
+      await page.keyboard.press('Shift+Tab');
+      if ((await describeFocus(page)).includes('Move sign language window')) break;
+    }
+    await expect(page.getByRole('button', { name: /Move sign language window/i })).toBeFocused();
+
+    // Escape closes the window and returns focus to the page rather than trapping it.
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByRole('region', { name: 'Ethiopian Sign Language interpreter' }),
+    ).toBeHidden();
+  });
   test.fixme('content has no horizontal scrolling at 200% zoom (1280px at 2x)', async () => {});
   test('career cards remain usable at 640px and 320px layout widths', async ({ page }) => {
     const job = {
@@ -301,3 +395,42 @@ test.describe('automated accessibility (spec 11.2)', () => {
     expect(notSaved).toBe('failed');
   });
 });
+
+/** Name of the focused element, looking through shadow roots. */
+async function describeFocus(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    let active: Element | null = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    if (active === null) return '';
+    return `${active.getAttribute('aria-label') ?? ''} ${active.textContent ?? ''}`.trim();
+  });
+}
+
+/** Press Tab until the control with this name is focused; fail if focus never gets there. */
+async function tabTo(page: Page, name: string | RegExp): Promise<void> {
+  const matches = (text: string) =>
+    typeof name === 'string' ? text.startsWith(name) : name.test(text);
+  for (let i = 0; i < 60; i += 1) {
+    if (matches(await describeFocus(page))) return;
+    await page.keyboard.press('Tab');
+  }
+  throw new Error(`Tab never reached a control named ${String(name)}`);
+}
+
+async function routeCareers(page: Page): Promise<void> {
+  const job = {
+    id: 1,
+    title: 'Network Support Technician',
+    organization: 'Savanna Learning',
+    description: 'Help learners connect.',
+    location: 'Addis Ababa',
+    applicationUrl: 'https://jobs.example/1',
+    audioSummaryUrl: null,
+    accommodations: null,
+    certificateVerificationUrl: null,
+  };
+  await page.route(
+    (url) => url.pathname === '/api/v1/careers',
+    (route) => route.fulfill({ json: { items: [job], total: 1, limit: 20, offset: 0 } }),
+  );
+}
