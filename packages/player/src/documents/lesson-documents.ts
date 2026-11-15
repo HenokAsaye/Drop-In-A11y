@@ -29,11 +29,12 @@ export function lessonDocumentLinks(
 
 export function renderLessonDocuments(
   links: readonly LessonDocumentLink[],
+  headingId = HEADING_ID,
 ): TemplateResult | typeof nothing {
   if (links.length === 0) return nothing;
   return html`
-    <nav class="lesson-documents" aria-labelledby=${HEADING_ID}>
-      <h2 id=${HEADING_ID}>Lesson documents</h2>
+    <nav class="lesson-documents" aria-labelledby=${headingId}>
+      <h2 id=${headingId}>Lesson documents</h2>
       <ul>
         ${links.map(renderDocument)}
       </ul>
