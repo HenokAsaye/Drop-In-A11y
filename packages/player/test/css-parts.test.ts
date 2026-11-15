@@ -26,7 +26,6 @@ function lessonBody(): Lesson {
         pdf: null,
       },
     ],
-    chapters: [{ name: 'Welcome', start: 0 }],
   };
 }
 
@@ -76,9 +75,6 @@ describe('host CSS parts', () => {
       'documents',
     );
     expect(player.shadowRoot?.querySelector('.lesson-documents a')?.getAttribute('part')).toBe(
-      'focus-ring',
-    );
-    expect(player.shadowRoot?.querySelector('.chapter-btn')?.getAttribute('part')).toBe(
       'focus-ring',
     );
 

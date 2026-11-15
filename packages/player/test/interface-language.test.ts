@@ -30,7 +30,6 @@ function lessonBody(): Lesson {
         pdf: null,
       },
     ],
-    chapters: [{ name: 'Welcome', start: 0 }],
   };
 }
 
@@ -83,14 +82,16 @@ describe('interface language', () => {
   it('uses English labels when lang is missing or unsupported', async () => {
     const player = await mount();
     expect(labelled(player, '.play-btn')).toBe('Play');
-    expect(player.shadowRoot?.querySelector('.text-lesson-btn')?.textContent?.trim()).toBe(
-      'Text lesson',
+    expect(player.shadowRoot?.querySelector('.shortcut-help-btn')?.textContent?.trim()).toBe(
+      'Keyboard shortcuts',
     );
 
     player.setAttribute('lang', 'fr');
     await player.updateComplete;
     expect(labelled(player, '.play-btn')).toBe('Play');
-    expect(player.shadowRoot?.querySelector('#chapters-heading')?.textContent).toBe('Chapters');
+    expect(player.shadowRoot?.querySelector('#lesson-documents-heading')?.textContent).toBe(
+      'Lesson documents',
+    );
   });
 
   it('translates controls and keeps authored lesson content', async () => {
@@ -120,15 +121,6 @@ describe('interface language', () => {
     );
     expect(player.shadowRoot?.querySelector('.lesson-documents a')?.textContent).toBe(
       'Networking Notes፣ HTML',
-    );
-    expect(player.shadowRoot?.querySelector('#chapters-heading')?.textContent).toBe('ምዕራፎች');
-    expect(player.shadowRoot?.querySelector('.chapter-name')?.textContent).toBe('Welcome');
-    expect(player.shadowRoot?.querySelector('#bookmarks-heading')?.textContent).toBe('ዕልባቶች');
-    expect(player.shadowRoot?.querySelector('.text-lesson-btn')?.textContent?.trim()).toBe(
-      'የጽሑፍ ትምህርት',
-    );
-    expect(player.shadowRoot?.querySelector('.download-transcript-btn')?.textContent?.trim()).toBe(
-      'ጽሑፋዊ ቅጂ አውርድ',
     );
     expect(player.shadowRoot?.querySelector('#player-status')?.textContent).toContain(
       'Introduction to Networking',
@@ -162,6 +154,5 @@ describe('interface language', () => {
     await player.updateComplete;
     expect(labelled(player, '.play-btn')).toBe('Play');
     expect(transcript?.shadowRoot?.textContent).toContain('እንኳን ወደ ኔትወርክ ትምህርታችን በደህና መጡ።');
-    expect(player.shadowRoot?.querySelector('.chapter-name')?.textContent).toBe('Welcome');
   });
 });

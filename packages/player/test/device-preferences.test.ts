@@ -2,12 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import '../src/index';
 import type { SavannaPlayer } from '../src/components/savanna-player';
-import {
-  CAPTION_SETTINGS_KEY,
-  LESSON_BOOKMARKS_KEY,
-  LESSON_POSITIONS_KEY,
-  PLAYBACK_SETTINGS_KEY,
-} from '../src/config';
+import { CAPTION_SETTINGS_KEY, LESSON_POSITIONS_KEY, PLAYBACK_SETTINGS_KEY } from '../src/config';
 import { FORCED_COLORS_QUERY, REDUCED_MOTION_QUERY } from '../src/media-preferences';
 
 function installMedia(initial: Record<string, boolean>) {
@@ -102,19 +97,14 @@ describe('device caption and motion preferences', () => {
     });
   });
 
-  it('follows reduced motion without changing playback or bookmark storage', async () => {
+  it('follows reduced motion without changing playback storage', async () => {
     localStorage.setItem(
       PLAYBACK_SETTINGS_KEY,
       JSON.stringify({ volume: 0.4, playbackRate: 1.25, muted: true }),
     );
     localStorage.setItem(LESSON_POSITIONS_KEY, JSON.stringify({ 'networking-101': 12 }));
-    localStorage.setItem(
-      LESSON_BOOKMARKS_KEY,
-      JSON.stringify({ 'networking-101': { en: [{ start: 0, text: 'Welcome' }] } }),
-    );
     const playback = localStorage.getItem(PLAYBACK_SETTINGS_KEY);
     const positions = localStorage.getItem(LESSON_POSITIONS_KEY);
-    const bookmarks = localStorage.getItem(LESSON_BOOKMARKS_KEY);
 
     const media = installMedia({ [REDUCED_MOTION_QUERY]: true, [FORCED_COLORS_QUERY]: false });
     const player = await mount();
@@ -134,7 +124,6 @@ describe('device caption and motion preferences', () => {
 
     expect(localStorage.getItem(PLAYBACK_SETTINGS_KEY)).toBe(playback);
     expect(localStorage.getItem(LESSON_POSITIONS_KEY)).toBe(positions);
-    expect(localStorage.getItem(LESSON_BOOKMARKS_KEY)).toBe(bookmarks);
     expect(localStorage.getItem(CAPTION_SETTINGS_KEY)).toBeNull();
   });
 });

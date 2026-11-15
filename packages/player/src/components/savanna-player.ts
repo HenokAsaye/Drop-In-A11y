@@ -44,12 +44,6 @@ import {
 import { MediaController } from '../media/media-controller';
 import { MediaSync } from '../media/media-sync';
 import {
-  addBookmark,
-  readBookmarks,
-  removeBookmark,
-  type SentenceBookmark,
-} from '../playback/bookmarks';
-import {
   readLessonPosition,
   readPlaybackSettings,
   readTimestamp,
@@ -65,10 +59,8 @@ import {
   watchMedia,
 } from '../media-preferences';
 import { SIGN_LANGUAGE_TAG, type SignLanguageWindow } from '../sign-language/sign-language-window';
-import { transcriptDocument, transcriptFilename } from '../transcript/transcript-export';
 import '../transcript/transcript-panel';
 import type {
-  TranscriptBookmarkDetail,
   TranscriptLanguageDetail,
   TranscriptSeekDetail,
 } from '../transcript/transcript-panel';
@@ -100,51 +92,6 @@ function formatTime(seconds: number): string {
   const minutes = Math.floor(total / 60);
   const secs = total % 60;
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
-}
-
-function readableChapters(
-  chapters: Lesson['chapters'] | null | undefined,
-): { name: string; start: number }[] {
-  if (!Array.isArray(chapters)) return [];
-  const readable: { name: string; start: number }[] = [];
-  for (const chapter of chapters) {
-    if (chapter === null || typeof chapter !== 'object') continue;
-    const name = typeof chapter.name === 'string' ? chapter.name.trim() : '';
-    const start = chapter.start;
-    if (name === '' || typeof start !== 'number' || !Number.isFinite(start) || start < 0) continue;
-    readable.push({ name, start });
-  }
-  return readable;
-}
-
-function bookmarkStatusMessage(status: string, lang: string): string {
-  switch (status) {
-    case 'added':
-      return interfaceText(lang, 'bookmarkSaved');
-    case 'removed':
-      return interfaceText(lang, 'bookmarkRemoved');
-    case 'duplicate':
-      return interfaceText(lang, 'bookmarkDuplicate');
-    case 'limit':
-      return interfaceText(lang, 'bookmarkLimit');
-    case 'unavailable':
-      return interfaceText(lang, 'bookmarkUnavailable');
-    default:
-      return '';
-  }
-}
-
-function exportStatusMessage(status: string, lang: string): string {
-  switch (status) {
-    case 'downloaded':
-      return interfaceText(lang, 'transcriptDownloaded');
-    case 'empty':
-      return interfaceText(lang, 'transcriptEmpty');
-    case 'failed':
-      return interfaceText(lang, 'transcriptFailed');
-    default:
-      return '';
-  }
 }
 
 /**
@@ -179,10 +126,6 @@ export class SavannaPlayer extends LitElement {
     signLanguageOpen: { state: true },
     signLanguageSrc: { state: true },
     audioDescriptionEnabled: { state: true },
-    bookmarks: { state: true },
-    bookmarkMessage: { state: true },
-    transcriptExportMessage: { state: true },
-    textLessonOpen: { state: true },
     shortcutHelpOpen: { state: true },
   };
 
@@ -458,108 +401,6 @@ export class SavannaPlayer extends LitElement {
       cursor: pointer;
     }
 
-    .reading-tools,
-    .chapters,
-    .bookmarks,
-    .text-lesson {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      min-width: 0;
-      padding: 0.75rem 0.5rem;
-      border-top: 1px solid rgba(148, 163, 184, 0.4);
-      background: rgba(15, 23, 42, 0.95);
-      color: #f8fafc;
-    }
-
-    .reading-tools {
-      flex-direction: row;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .chapters h2,
-    .bookmarks h2,
-    .text-lesson h2 {
-      margin: 0;
-      font-size: 0.875rem;
-      font-weight: 600;
-      line-height: 1.4;
-    }
-
-    .chapters ol,
-    .bookmarks ul,
-    .text-lesson-transcript {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      min-width: 0;
-    }
-
-    .chapter-btn,
-    .bookmark-btn,
-    .text-lesson-sentence,
-    .bookmark-remove,
-    .text-lesson-bookmark,
-    .reading-tools .control-btn {
-      max-width: 100%;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      text-align: start;
-    }
-
-    .chapter-btn,
-    .bookmark-btn,
-    .text-lesson-sentence {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 0.25rem 0.75rem;
-      width: 100%;
-      min-height: 2.5rem;
-      padding: 0.5rem 0.75rem;
-      background: transparent;
-      color: inherit;
-      border: 1px solid transparent;
-      border-radius: 4px;
-      cursor: pointer;
-      font: inherit;
-    }
-
-    .bookmark-row,
-    .text-lesson-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.25rem;
-      min-width: 0;
-    }
-
-    .bookmark-btn,
-    .text-lesson-sentence {
-      flex: 1 1 12rem;
-      width: auto;
-    }
-
-    .chapter-time,
-    .sentence-time {
-      font-variant-numeric: tabular-nums;
-    }
-
-    .reading-status,
-    .bookmark-status,
-    .bookmark-empty,
-    .text-lesson-empty {
-      margin: 0;
-      flex-basis: 100%;
-      min-width: 0;
-      font-size: 0.875rem;
-      overflow-wrap: anywhere;
-    }
-
     ${lessonDocumentStyles}
   `;
 
@@ -593,10 +434,6 @@ export class SavannaPlayer extends LitElement {
   declare signLanguageOpen: boolean;
   declare signLanguageSrc: string;
   declare audioDescriptionEnabled: boolean;
-  declare bookmarks: SentenceBookmark[];
-  declare bookmarkMessage: string;
-  declare transcriptExportMessage: string;
-  declare textLessonOpen: boolean;
   declare shortcutHelpOpen: boolean;
 
   private abortController: AbortController | null = null;
@@ -624,8 +461,6 @@ export class SavannaPlayer extends LitElement {
   private audioDescription: AudioDescriptionTrack | null = null;
   private documentLinks: LessonDocumentLink[] = [];
   private mediaUnsubscribers: Array<() => void> = [];
-  private bookmarkState = '';
-  private exportState = '';
   private linkState: '' | 'copied' | 'failed' = '';
   private offlineNotice: OfflineNotice = { kind: 'idle' };
 
@@ -687,10 +522,6 @@ export class SavannaPlayer extends LitElement {
     this.signLanguageOpen = false;
     this.signLanguageSrc = '';
     this.audioDescriptionEnabled = false;
-    this.bookmarks = [];
-    this.bookmarkMessage = '';
-    this.transcriptExportMessage = '';
-    this.textLessonOpen = false;
     this.shortcutHelpOpen = false;
   }
 
@@ -779,8 +610,6 @@ export class SavannaPlayer extends LitElement {
   }
 
   private refreshInterfaceMessages(): void {
-    this.bookmarkMessage = bookmarkStatusMessage(this.bookmarkState, this.lang);
-    this.transcriptExportMessage = exportStatusMessage(this.exportState, this.lang);
     if (this.linkState === 'copied') this.linkMessage = this.text('linkCopied');
     if (this.linkState === 'failed') this.linkMessage = this.text('linkCopyFailed');
     this.applyOfflineNotice();
@@ -837,14 +666,6 @@ export class SavannaPlayer extends LitElement {
     }
     if (changed.has('lessonId') || changed.has('apiBase')) this.beginLoad();
     if (changed.has('lang')) this.refreshInterfaceMessages();
-    if (
-      changed.has('lessonId') ||
-      changed.has('apiBase') ||
-      changed.has('transcriptLanguage') ||
-      changed.has('captionLanguage')
-    ) {
-      this.bookmarks = readBookmarks(this.lessonId, this.transcriptLanguage);
-    }
     const transcriptInputChanged =
       changed.has('status') || changed.has('captionLanguage') || changed.has('transcriptLanguage');
     if (this.status === 'ready' && transcriptInputChanged) void this.loadTranscript();
@@ -1373,7 +1194,6 @@ export class SavannaPlayer extends LitElement {
             <li>${this.text('helpSign')}</li>
           </ul>
         </div>
-        ${this.status === 'ready' ? this.renderReadingTools() : nothing} ${this.renderChapters()}
         ${
           this.status === 'ready'
             ? html`<savanna-transcript
@@ -1385,12 +1205,9 @@ export class SavannaPlayer extends LitElement {
                 ?reduced-motion=${this.reducedMotion}
                 @savanna-transcript-seek=${this.onTranscriptSeek}
                 @savanna-transcript-language=${this.onTranscriptLanguage}
-                @savanna-transcript-bookmark=${this.onTranscriptBookmark}
               ></savanna-transcript>`
             : nothing
         }
-        ${this.status === 'ready' ? this.renderBookmarks() : nothing}
-        ${this.status === 'ready' && this.textLessonOpen ? this.renderTextLesson() : nothing}
         ${renderLessonDocuments(this.documentLinks, undefined, this.lang)}
         ${this.renderCaptionControls()} ${this.renderOfflineControls()}
       </section>
@@ -1399,230 +1216,14 @@ export class SavannaPlayer extends LitElement {
 
   private onTranscriptSeek = (event: CustomEvent<TranscriptSeekDetail>): void => {
     const seconds = event.detail?.seconds;
-    if (typeof seconds !== 'number') return;
-    this.seekFromUser(seconds);
-  };
-
-  private seekFromUser(seconds: number): void {
-    if (!Number.isFinite(seconds)) return;
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return;
     this.controller?.seekTo(seconds);
     this.noteUserSeek(seconds);
-  }
+  };
 
   private toggleShortcutHelp = (): void => {
     this.shortcutHelpOpen = !this.shortcutHelpOpen;
   };
-
-  private renderReadingTools() {
-    return html`
-      <div class="reading-tools">
-        <button
-          type="button"
-          class="control-btn download-transcript-btn"
-          part="focus-ring"
-          @click=${this.downloadTranscript}
-        >
-          ${this.text('downloadTranscript')}
-        </button>
-        <button
-          type="button"
-          class="control-btn text-lesson-btn"
-          part="focus-ring"
-          aria-expanded=${this.textLessonOpen ? 'true' : 'false'}
-          aria-controls="text-lesson"
-          @click=${this.toggleTextLesson}
-        >
-          ${this.text('textLesson')}
-        </button>
-        <span class="reading-status" role="status" aria-live="polite"
-          >${this.transcriptExportMessage}</span
-        >
-      </div>
-    `;
-  }
-
-  private renderChapters() {
-    if (this.status !== 'ready') return nothing;
-    const chapters = readableChapters(this.lesson?.chapters);
-    if (chapters.length === 0) return nothing;
-    return html`
-      <nav class="chapters" aria-labelledby="chapters-heading">
-        <h2 id="chapters-heading">${this.text('chapters')}</h2>
-        <ol>
-          ${chapters.map(
-            (chapter) => html`
-              <li>
-                <button
-                  type="button"
-                  class="chapter-btn"
-                  part="focus-ring"
-                  @click=${() => this.seekFromUser(chapter.start)}
-                >
-                  <span class="chapter-name" lang=${this.lesson?.language || nothing}
-                    >${chapter.name}</span
-                  >
-                  <span class="chapter-time">
-                    <span class="visually-hidden">${this.text('startsAt')} </span>${formatTime(
-                      chapter.start,
-                    )}
-                  </span>
-                </button>
-              </li>
-            `,
-          )}
-        </ol>
-      </nav>
-    `;
-  }
-
-  private renderBookmarks() {
-    const language = this.transcriptLanguage;
-    return html`
-      <section class="bookmarks" aria-labelledby="bookmarks-heading">
-        <h2 id="bookmarks-heading">${this.text('bookmarks')}</h2>
-        ${
-          this.bookmarks.length === 0
-            ? html`<p class="bookmark-empty">${this.text('noBookmarks')}</p>`
-            : html`
-                <ul>
-                  ${this.bookmarks.map(
-                    (bookmark) => html`
-                      <li class="bookmark-row">
-                        <button
-                          type="button"
-                          class="bookmark-btn"
-                          part="focus-ring"
-                          @click=${() => this.seekFromUser(bookmark.start)}
-                        >
-                          <span class="sentence-time">
-                            <span class="visually-hidden">${this.text('startsAt')} </span
-                            >${formatTime(bookmark.start)}
-                          </span>
-                          <span lang=${language}>${bookmark.text}</span>
-                        </button>
-                        <button
-                          type="button"
-                          class="control-btn bookmark-remove"
-                          part="focus-ring"
-                          aria-label=${this.text('removeBookmark', {
-                            time: formatTime(bookmark.start),
-                            text: bookmark.text,
-                          })}
-                          @click=${() => this.deleteBookmark(bookmark.start)}
-                        >
-                          ${this.text('remove')}
-                        </button>
-                      </li>
-                    `,
-                  )}
-                </ul>
-              `
-        }
-        <span class="bookmark-status" role="status" aria-live="polite"
-          >${this.bookmarkMessage}</span
-        >
-      </section>
-    `;
-  }
-
-  private renderTextLesson() {
-    const language = this.transcriptLanguage;
-    const segments = this.transcriptSegments;
-    return html`
-      <section id="text-lesson" class="text-lesson" aria-labelledby="text-lesson-heading">
-        <h2 id="text-lesson-heading">${this.text('textLesson')}</h2>
-        <div class="text-lesson-transcript" lang=${language}>
-          ${
-            segments.length === 0
-              ? html`<p class="text-lesson-empty">${this.text('textLessonEmpty')}</p>`
-              : segments.map(
-                  (segment) => html`
-                    <div class="text-lesson-row">
-                      <button
-                        type="button"
-                        class="text-lesson-sentence"
-                        part="focus-ring"
-                        @click=${() => this.seekFromUser(segment.start)}
-                      >
-                        <span class="sentence-time">
-                          <span class="visually-hidden">${this.text('startsAt')} </span
-                          >${formatTime(segment.start)}
-                        </span>
-                        <span>${segment.text}</span>
-                      </button>
-                      <button
-                        type="button"
-                        class="control-btn text-lesson-bookmark"
-                        part="focus-ring"
-                        lang=${uiLanguage(this.lang)}
-                        aria-label=${this.text('bookmarkSentence', { text: segment.text })}
-                        @click=${() => this.saveSentenceBookmark(segment.start, segment.text)}
-                      >
-                        ${this.text('bookmark')}
-                      </button>
-                    </div>
-                  `,
-                )
-          }
-        </div>
-        ${renderLessonDocuments(this.documentLinks, 'text-lesson-documents-heading', this.lang)}
-      </section>
-    `;
-  }
-
-  private toggleTextLesson = (): void => {
-    this.textLessonOpen = !this.textLessonOpen;
-  };
-
-  private downloadTranscript = (): void => {
-    const documentText = transcriptDocument(this.transcriptSegments);
-    if (documentText === null) {
-      this.exportState = 'empty';
-      this.transcriptExportMessage = exportStatusMessage(this.exportState, this.lang);
-      return;
-    }
-    const filename = transcriptFilename(this.lessonId, this.transcriptLanguage);
-    let url: string | null = null;
-    let anchor: HTMLAnchorElement | null = null;
-    try {
-      const blob = new Blob([documentText], { type: 'text/plain;charset=utf-8' });
-      url = URL.createObjectURL(blob);
-      anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.hidden = true;
-      this.renderRoot.append(anchor);
-      anchor.click();
-      this.exportState = 'downloaded';
-      this.transcriptExportMessage = exportStatusMessage(this.exportState, this.lang);
-    } catch {
-      this.exportState = 'failed';
-      this.transcriptExportMessage = exportStatusMessage(this.exportState, this.lang);
-    } finally {
-      anchor?.remove();
-      if (url !== null) URL.revokeObjectURL(url);
-    }
-  };
-
-  private onTranscriptBookmark = (event: CustomEvent<TranscriptBookmarkDetail>): void => {
-    const detail = event.detail;
-    if (typeof detail?.start !== 'number' || typeof detail.text !== 'string') return;
-    this.saveSentenceBookmark(detail.start, detail.text);
-  };
-
-  private saveSentenceBookmark(start: number, text: string): void {
-    const result = addBookmark(this.lessonId, this.transcriptLanguage, { start, text });
-    this.bookmarks = result.bookmarks;
-    this.bookmarkState = result.status;
-    this.bookmarkMessage = bookmarkStatusMessage(result.status, this.lang);
-  }
-
-  private deleteBookmark(start: number): void {
-    const result = removeBookmark(this.lessonId, this.transcriptLanguage, start);
-    this.bookmarks = result.bookmarks;
-    this.bookmarkState = result.status;
-    this.bookmarkMessage = bookmarkStatusMessage(result.status, this.lang);
-  }
 
   private onTranscriptLanguage = (event: CustomEvent<TranscriptLanguageDetail>): void => {
     const language = event.detail?.language;
@@ -1951,11 +1552,6 @@ export class SavannaPlayer extends LitElement {
     this.transcriptRequestId += 1;
     this.transcriptSegments = [];
     this.transcriptLanguage = transcriptLanguageOf(this.captionLanguage);
-    this.bookmarkState = '';
-    this.bookmarkMessage = '';
-    this.exportState = '';
-    this.transcriptExportMessage = '';
-    this.textLessonOpen = false;
 
     const lessonId = this.lessonId.trim();
     const apiBase = this.apiBase.trim();

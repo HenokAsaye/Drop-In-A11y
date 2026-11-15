@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 
 from app.schemas.common import CamelModel
 
@@ -32,21 +32,6 @@ class LessonDocumentOut(CamelModel):
     pdf: str | None = None
 
 
-class Chapter(CamelModel):
-    """A named point in the lesson. Chapters do not have an end time."""
-
-    name: str = Field(min_length=1, max_length=255)
-    start: float = Field(ge=0, description="Chapter start time in seconds")
-
-    @field_validator("name")
-    @classmethod
-    def name_is_visible_text(cls, value: str) -> str:
-        name = value.strip()
-        if name == "":
-            raise ValueError("chapter name must not be blank")
-        return name
-
-
 class LessonOut(CamelModel):
     id: str = Field(examples=["networking-101"])
     title: str
@@ -56,7 +41,6 @@ class LessonOut(CamelModel):
     captions: list[CaptionTrackOut]
     transcripts: list[TranscriptRef]
     documents: list[LessonDocumentOut]
-    chapters: list[Chapter]
 
 
 class TranscriptSegment(CamelModel):
