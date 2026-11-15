@@ -256,6 +256,74 @@ describe('<savanna-player> lesson loading (spec 2.3, 4.1)', () => {
     expect(events.errors).toEqual([message]);
   });
 
+  it('retries a failed lesson load with the same message still showing', async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) {
+          return jsonResponse(
+            { detail: 'The lesson could not be loaded.', code: 'not_found' },
+            503,
+          );
+        }
+        return jsonResponse(lessonBody('networking-101', 'Introduction to Networking'));
+      }),
+    );
+    const player = await mount({
+      'lesson-id': 'networking-101',
+      'api-base': 'https://api.example',
+    });
+    await vi.waitFor(() => expect(player.status).toBe('error'));
+    const retry = player.shadowRoot?.querySelector<HTMLButtonElement>('.retry-btn');
+    expect(retry?.textContent?.trim()).toBe('Retry');
+    expect(retry?.getAttribute('part')).toBe('focus-ring');
+    expect(player.shadowRoot?.querySelector('#player-error')?.textContent).toBe(
+      'The lesson could not be loaded.',
+    );
+    retry?.click();
+    await vi.waitFor(() => expect(player.status).toBe('ready'));
+    expect(player.shadowRoot?.querySelector('.retry-btn')).toBeNull();
+  });
+
+  it('retries a failed transcript without loading the lesson again', async () => {
+    let lessons = 0;
+    let transcripts = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/transcript')) {
+          transcripts += 1;
+          if (transcripts === 1) return jsonResponse({ detail: 'missing' }, 404);
+          return jsonResponse({
+            language: 'en',
+            segments: [{ start: 0, end: 1, text: 'Welcome.' }],
+          });
+        }
+        lessons += 1;
+        return jsonResponse(lessonBody('networking-101', 'Introduction to Networking'));
+      }),
+    );
+    const player = await mount({
+      'lesson-id': 'networking-101',
+      'api-base': 'https://api.example',
+    });
+    await vi.waitFor(() =>
+      expect(player.shadowRoot?.querySelector('.transcript-status')?.textContent).toContain(
+        'The transcript could not be downloaded.',
+      ),
+    );
+    expect(lessons).toBe(1);
+    player.shadowRoot?.querySelector<HTMLButtonElement>('.retry-btn')?.click();
+    const transcript = player.shadowRoot?.querySelector('savanna-transcript');
+    await vi.waitFor(() => expect(transcript?.shadowRoot?.textContent).toContain('Welcome.'));
+    expect(lessons).toBe(1);
+    expect(transcripts).toBe(2);
+    expect(player.shadowRoot?.querySelector('.retry-btn')).toBeNull();
+  });
+
   it('reloads when lesson-id changes and aborts the previous request', async () => {
     const signals: AbortSignal[] = [];
     const pending: Array<ReturnType<typeof deferredResponse>> = [];

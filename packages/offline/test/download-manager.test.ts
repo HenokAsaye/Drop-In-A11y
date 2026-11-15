@@ -85,7 +85,14 @@ describe('download manager (spec 4.6)', () => {
     await manager.download(pkg(), 'text', (progress) => events.push(progress));
     const bytes = events.map((event) => event.completedBytes);
     expect(bytes).toEqual([0, 100, 200, 300, 400, 400]);
-    expect(events.at(-1)).toMatchObject({ status: 'downloaded', totalBytes: 400 });
+    expect(events[0]).toMatchObject({ currentFile: 't-en.json', percent: 0 });
+    expect(events[4]).toMatchObject({ currentFile: 'notes.pdf', percent: 100 });
+    expect(events.at(-1)).toMatchObject({
+      status: 'downloaded',
+      totalBytes: 400,
+      percent: 100,
+      currentFile: '',
+    });
   });
 
   it('marks a download failed and cleans up partial files on network error', async () => {

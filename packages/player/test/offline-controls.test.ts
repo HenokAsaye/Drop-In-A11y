@@ -1,4 +1,4 @@
-import type { DownloadManager } from '@savanna/offline';
+import type { DownloadManager, DownloadProgress, OfflineMode } from '@savanna/offline';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import '../src/index';
@@ -35,11 +35,32 @@ function stubApi(): void {
   );
 }
 
-function fakeManager(initial: 'downloaded' | 'not-downloaded' = 'not-downloaded') {
+function fakeManager(
+  initial: 'downloaded' | 'not-downloaded' = 'not-downloaded',
+  mode: OfflineMode = 'audio',
+) {
   return {
-    download: vi.fn(async () => {}),
+    download: vi.fn(
+      async (pkg?: unknown, mode?: unknown, onProgress?: (progress: DownloadProgress) => void) => {
+        void pkg;
+        void mode;
+        void onProgress;
+      },
+    ),
     remove: vi.fn(async () => {}),
     status: vi.fn(async () => initial),
+    record: vi.fn(async () =>
+      initial === 'downloaded'
+        ? {
+            lessonId: 'networking-101',
+            version: 'v1',
+            mode,
+            sizeBytes: 1,
+            downloadedAt: '2026-11-15T00:00:00.000Z',
+            package: offlinePackage,
+          }
+        : undefined,
+    ),
   };
 }
 
@@ -160,9 +181,63 @@ describe('<savanna-player> offline controls (spec 4.6)', () => {
     stubApi();
     const manager = fakeManager('downloaded');
     const player = await mount(manager);
-    await vi.waitFor(() => expect(offlineStatus(player)).toBe('This lesson is available offline.'));
+    await vi.waitFor(() => expect(offlineStatus(player)).toBe('Available offline: audio only.'));
+    expect(player.shadowRoot?.querySelector('.offline-badge')?.textContent?.trim()).toBe(
+      'Available offline: audio only.',
+    );
     button(player, 'Remove download').click();
     await vi.waitFor(() => expect(offlineStatus(player)).toBe('Offline copy removed.'));
+    expect(player.shadowRoot?.querySelector('.offline-badge')).toBeNull();
     expect(manager.remove).toHaveBeenCalledWith('networking-101');
+  });
+
+  it('shows the file name and percent until the download finishes', async () => {
+    stubApi();
+    stubServiceWorker();
+    const manager = fakeManager();
+    let finish = (): void => {};
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    manager.download.mockImplementation(
+      async (_pkg: unknown, _mode: unknown, onProgress?: (progress: DownloadProgress) => void) => {
+        onProgress?.({
+          lessonId: 'networking-101',
+          status: 'downloading',
+          completedBytes: 50,
+          totalBytes: 0,
+          percent: 50,
+          currentFile: 'networking-101.mp3',
+        });
+        await gate;
+      },
+    );
+    const player = await mount(manager);
+    button(player, 'Download audio only').click();
+    await vi.waitFor(() =>
+      expect(offlineStatus(player)).toBe('Downloading networking-101.mp3. 50%.'),
+    );
+    expect(player.shadowRoot?.querySelector('.offline-progress')?.getAttribute('value')).toBe('50');
+    finish();
+    await vi.waitFor(() => expect(offlineStatus(player)).toContain('Downloaded for offline use'));
+    expect(player.shadowRoot?.querySelector('.offline-badge')?.textContent?.trim()).toBe(
+      'Available offline: audio only.',
+    );
+    expect(player.shadowRoot?.querySelector('.retry-btn')).toBeNull();
+  });
+
+  it('retries a failed download once, with the same mode', async () => {
+    stubApi();
+    stubServiceWorker();
+    const manager = fakeManager();
+    manager.download.mockRejectedValueOnce(new Error('network'));
+    const player = await mount(manager);
+    button(player, 'Download text only').click();
+    await vi.waitFor(() => expect(offlineStatus(player)).toContain('The download failed'));
+    button(player, 'Retry').click();
+    await vi.waitFor(() => expect(manager.download).toHaveBeenCalledTimes(2));
+    expect(manager.download).toHaveBeenLastCalledWith(offlinePackage, 'text', expect.any(Function));
+    await vi.waitFor(() => expect(offlineStatus(player)).toContain('Downloaded for offline use'));
+    expect(player.shadowRoot?.querySelector('.retry-btn')).toBeNull();
   });
 });

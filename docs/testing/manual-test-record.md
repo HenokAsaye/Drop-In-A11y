@@ -139,6 +139,23 @@ Lesson:          networking-101 notes, opened from the demo player
 | Documents HTML | Open Networking Notes, HTML from the player. Check the heading order, the diagram, the table, and both links. Run axe-core with the WCAG 2.2 AA tags. | One h1, headings in order, a described diagram, a table with headers, descriptive links, and no critical or serious axe violations. | Pass | The player link opened `networking-101-notes.html`. The page has `lang="en"`, one h1, h2 and h3 in order, the diagram alt text, column and row headers, and the links "Compare a switch and a router" and "Networking Notes PDF". axe-core reported no violations for wcag2a, wcag2aa, wcag21a, wcag21aa, and wcag22aa. |
 | Documents PDF | Rebuild with `uv run scripts/build_notes_pdf.py assets/documents/networking-101-notes.html`, then inspect the tag structure of `networking-101-notes.pdf` with pikepdf. | Tagged, language set, real headings, table headers, figure description, and the same reading order as the HTML. | Pass for tags. PAC, veraPDF, and a screen reader not run. | Built from the HTML with WeasyPrint 70 as PDF/UA-1 (`pdfuaid:part` 1). One page, `/Lang` is `en`, the title is shown in the window bar, and the fonts are embedded. The structure tree has H1, three H2s, one H3, paragraphs, a figure whose alt text matches the diagram, a table with a caption, header cells with IDs, data cells that name their headers, and links. The internal link goes to the comparison table, and the external link points to `networking-101-notes.html` next to the PDF. This is not a validator or screen-reader pass. |
 
+## Session 2026-11-15 — Offline badge, download progress, and Retry
+
+```
+Date:            2026-11-15
+Tester:          Browser session was not repeated for this change
+Build / commit:  dev (offline badge, progress, and Retry)
+AT + version:    None. NVDA and TalkBack were not available.
+Browser + OS:    Unit tests and the offline Playwright check on Linux
+Lesson:          networking-101 download controls
+```
+
+| Check | Steps | Expected | Result (Pass/Fail) | Notes / issue link |
+| ----- | ----- | -------- | ------------------ | ------------------ |
+| Offline badge | Download audio, then remove the download. Reload a lesson that is already stored as audio. | The badge names the stored package, for example “Available offline: audio only.” It updates after download and disappears after Remove download. | Pass in unit tests. Screen reader not run. | The badge is plain text. The polite status repeats the same sentence when a stored lesson is opened, and says “Downloaded for offline use: audio only.” when a download finishes. |
+| Download progress | Start a package download. | The status shows the current file name and the percent until the download finishes or fails. | Pass in unit tests. Screen reader not run. | The percent counts saved files, because the package does not include file sizes. A visual progress bar repeats that percent and is hidden from assistive technology so the status is the one announcement. |
+| Retry | Fail the lesson, the transcript, or a download, then activate Retry. | One Retry control repeats that request. A finished download is not fetched again. | Pass in unit tests. Screen reader not run. | Retry is a button named “Retry”, so Space activates it. The failure sentences stay the ones the player already uses. |
+
 ## Known limitations
 
 | Date | Limitation | Impact | Planned fix |
@@ -148,3 +165,4 @@ Lesson:          networking-101 notes, opened from the demo player
 | 2026-11-14 | The service worker only answers downloaded lesson files. The host page itself is not cached. | Reloading the host page while offline fails unless the host caches its own page. Only lesson files requested by an already-open page are proven to work offline. | Decide whether the worker should also cache the host page shell |
 | 2026-11-14 | Host sites must serve `savanna-sw.js` from their own origin. | Without it, downloads are saved but offline playback is not set up. The player says so. | Documented in `docs/integration.md` |
 | 2026-11-15 | The networking notes PDF was checked from its structure tree, not with PAC, veraPDF, or a screen reader. | A validator or screen reader may still find a reading-order or table-header problem that the structure tree does not show. | Repeat the PDF check with PAC or veraPDF and NVDA or TalkBack |
+| 2026-11-15 | The offline badge, download progress, and Retry control were not checked with a screen reader. | A screen reader may announce the badge differently from the unit tests. The progress bar is hidden from assistive technology; the status text is the announcement. | Repeat with NVDA or TalkBack |
