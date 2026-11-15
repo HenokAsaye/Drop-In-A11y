@@ -99,6 +99,23 @@
       th {
         background: var(--head);
       }
+
+      @media print {
+        @page {
+          size: A4;
+          margin: 16mm 18mm;
+        }
+
+        body {
+          background: #ffffff;
+          font-size: 11pt;
+        }
+
+        main {
+          max-width: none;
+          padding: 0;
+        }
+      }
     </style>
   </head>
   <body>
@@ -118,7 +135,7 @@
         src="networking-101-topology.svg"
         width="640"
         height="160"
-        alt="A laptop connected to a switch, and that switch connected to a router."
+        alt="A computer connected to a switch, and that switch connected to a router."
       />
       <p>
         <a href="#switch-and-router">Compare a switch and a router</a>
@@ -157,9 +174,14 @@
       </table>
 
       <h2>Keep a copy</h2>
-      <p>
+      <p data-copy="html">
         The same notes are also available as a tagged PDF. Open
         <a href="networking-101-notes.pdf">Networking Notes PDF</a>
+        from this folder, or use the document links on the lesson player.
+      </p>
+      <p data-copy="pdf" hidden>
+        The same notes are also available as a web page. Open
+        <a href="networking-101-notes.html">Networking Notes HTML</a>
         from this folder, or use the document links on the lesson player.
       </p>
     </main>
