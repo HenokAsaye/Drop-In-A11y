@@ -1,6 +1,8 @@
 import type { TranscriptSegment } from '@savanna/contracts';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 
+import { interfaceText } from '../labels';
+import { REDUCED_MOTION_QUERY, mediaMatches, watchMedia } from '../media-preferences';
 import { findActiveSegment, searchSegments } from './transcript-sync';
 
 export const TRANSCRIPT_TAG = 'savanna-transcript';
@@ -20,6 +22,8 @@ export class TranscriptPanel extends LitElement {
     segments: { attribute: false },
     currentTime: { type: Number, attribute: 'current-time' },
     language: { type: String },
+    interfaceLang: { type: String, attribute: 'interface-lang' },
+    reducedMotion: { type: Boolean, reflect: true, attribute: 'reduced-motion' },
     query: { state: true },
     activeIndex: { state: true },
   };
@@ -91,13 +95,24 @@ export class TranscriptPanel extends LitElement {
       background: #0f172a;
       color: #f8fafc;
     }
+
+    :host([reduced-motion]),
+    :host([reduced-motion]) * {
+      scroll-behavior: auto !important;
+      transition: none !important;
+      animation: none !important;
+    }
   `;
 
   declare segments: TranscriptSegment[];
   declare currentTime: number;
   declare language: string;
+  declare interfaceLang: string;
+  declare reducedMotion: boolean;
   declare query: string;
   declare activeIndex: number;
+
+  private unwatchMotion: (() => void) | null = null;
 
   private scrollPaused = false;
   private scrollIdleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -109,11 +124,23 @@ export class TranscriptPanel extends LitElement {
     this.segments = [];
     this.currentTime = 0;
     this.language = 'en';
+    this.interfaceLang = '';
+    this.reducedMotion = false;
     this.query = '';
     this.activeIndex = -1;
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.reducedMotion = mediaMatches(REDUCED_MOTION_QUERY);
+    this.unwatchMotion = watchMedia(REDUCED_MOTION_QUERY, (matches) => {
+      this.reducedMotion = matches;
+    });
+  }
+
   override disconnectedCallback(): void {
+    this.unwatchMotion?.();
+    this.unwatchMotion = null;
     this.clearScrollIdle();
     super.disconnectedCallback();
   }
@@ -132,25 +159,40 @@ export class TranscriptPanel extends LitElement {
     const language = this.language === 'am' ? 'am' : 'en';
     const visible = this.visibleIndexes();
     return html`
-      <section aria-label="Transcript">
-        <div class="languages" role="group" aria-label="Transcript language">
+      <section aria-label=${interfaceText(this.interfaceLang, 'transcript')}>
+        <div
+          class="languages"
+          role="group"
+          aria-label=${interfaceText(this.interfaceLang, 'transcriptLanguageGroup')}
+        >
           <button
             type="button"
+            part="focus-ring"
             aria-pressed=${language === 'en' ? 'true' : 'false'}
             @click=${() => this.chooseLanguage('en')}
           >
-            English
+            ${interfaceText(this.interfaceLang, 'english')}
           </button>
           <button
             type="button"
+            part="focus-ring"
+            lang="am"
             aria-pressed=${language === 'am' ? 'true' : 'false'}
             @click=${() => this.chooseLanguage('am')}
           >
             አማርኛ
           </button>
         </div>
-        <label for="transcript-search">Search transcript</label>
-        <input id="transcript-search" type="search" .value=${this.query} @input=${this.onSearch} />
+        <label for="transcript-search"
+          >${interfaceText(this.interfaceLang, 'searchTranscript')}</label
+        >
+        <input
+          id="transcript-search"
+          part="focus-ring"
+          type="search"
+          .value=${this.query}
+          @input=${this.onSearch}
+        />
         <div class="segments" @scroll=${this.onManualScroll}>
           ${visible.map((index) => {
             const segment = this.segments[index];
@@ -159,6 +201,7 @@ export class TranscriptPanel extends LitElement {
             return html`
               <button
                 type="button"
+                part="focus-ring"
                 data-index=${index}
                 lang=${language}
                 aria-current=${active ? 'true' : nothing}

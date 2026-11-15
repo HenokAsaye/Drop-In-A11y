@@ -39,7 +39,7 @@ Defined in `packages/contracts/src/element.ts`.
 | `api-base`         | Yes      | Base URL of the BridgePlayer API                |
 | `caption-language` | No       | Initial caption language (`en`, `am`)           |
 | `sw-url`           | No       | URL of `savanna-sw.js` on your own origin (default `/savanna-sw.js`) |
-| `lang`             | No       | Interface language for player labels            |
+| `lang`             | No       | Interface language for labels. `en` and `am` (including `am-ET`) are supported. Any other value uses English. This does not change caption or transcript language. |
 
 | Event                   | Detail                    |
 | ----------------------- | ------------------------- |
@@ -50,6 +50,35 @@ Defined in `packages/contracts/src/element.ts`.
 | `savanna-completed`     | `{ lessonId, currentTime }` — the video reached the end |
 
 The player remembers each lesson's position, plus speed and volume, in `localStorage` on this device. It does not store progress on a server. Listen to the three playback events if the host site wants its own record. A copied lesson link uses `savanna-t` (seconds) and `savanna-lesson` (the lesson id). `#t=` and `?t=` open at that time when `savanna-lesson` is absent or matches.
+
+When the learner has not saved caption settings, high contrast starts from the system `forced-colors: active` mode and is not written to storage. A caption choice the learner makes is saved and kept on the next visit, including when it matches the system mode. The player and the sign-language window follow `prefers-reduced-motion` and do not add their own animation.
+
+## Host colors
+
+Style the player from the host page with these CSS parts:
+
+| Part         | What it is                                                                 |
+| ------------ | -------------------------------------------------------------------------- |
+| `toolbar`    | The media control bar                                                      |
+| `documents`  | The lesson document list                                                   |
+| `focus-ring` | Focusable controls, including controls inside nested player components     |
+
+`focus-ring` on the transcript and sign-language window is re-exported with `exportparts="focus-ring"`, so one host rule reaches those nested controls.
+
+```css
+savanna-player::part(toolbar) {
+  background: #111827;
+}
+
+savanna-player::part(documents) {
+  border-color: #2563eb;
+}
+
+savanna-player::part(focus-ring):focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 2px;
+}
+```
 
 ## Requirements for the host
 

@@ -1,5 +1,8 @@
 import { LitElement, css, html } from 'lit';
 
+import { interfaceText } from '../labels';
+import { REDUCED_MOTION_QUERY, mediaMatches, watchMedia } from '../media-preferences';
+
 export const SIGN_LANGUAGE_TAG = 'savanna-sign-language';
 
 const DEFAULT_WIDTH = 200;
@@ -18,6 +21,8 @@ export class SignLanguageWindow extends LitElement {
     y: { type: Number },
     width: { type: Number },
     height: { type: Number },
+    interfaceLang: { type: String, attribute: 'interface-lang' },
+    reducedMotion: { type: Boolean, reflect: true, attribute: 'reduced-motion' },
   };
 
   static override styles = css`
@@ -164,6 +169,13 @@ export class SignLanguageWindow extends LitElement {
       white-space: nowrap;
       border: 0;
     }
+
+    :host([reduced-motion]),
+    :host([reduced-motion]) * {
+      scroll-behavior: auto !important;
+      transition: none !important;
+      animation: none !important;
+    }
   `;
 
   declare src: string;
@@ -172,6 +184,10 @@ export class SignLanguageWindow extends LitElement {
   declare y: number;
   declare width: number;
   declare height: number;
+  declare interfaceLang: string;
+  declare reducedMotion: boolean;
+
+  private unwatchMotion: (() => void) | null = null;
 
   private isDragging = false;
   private isResizing = false;
@@ -190,6 +206,8 @@ export class SignLanguageWindow extends LitElement {
     this.height = DEFAULT_HEIGHT;
     this.x = 0;
     this.y = 0;
+    this.interfaceLang = '';
+    this.reducedMotion = false;
   }
 
   get videoElement(): HTMLVideoElement | null {
@@ -198,11 +216,17 @@ export class SignLanguageWindow extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.reducedMotion = mediaMatches(REDUCED_MOTION_QUERY);
+    this.unwatchMotion = watchMedia(REDUCED_MOTION_QUERY, (matches) => {
+      this.reducedMotion = matches;
+    });
     this.ensureInBounds();
     window.addEventListener('resize', this.handleWindowResize);
   }
 
   override disconnectedCallback(): void {
+    this.unwatchMotion?.();
+    this.unwatchMotion = null;
     window.removeEventListener('resize', this.handleWindowResize);
     super.disconnectedCallback();
   }
@@ -413,7 +437,7 @@ export class SignLanguageWindow extends LitElement {
     return html`
       <section
         class="window-container"
-        aria-label="Ethiopian Sign Language interpreter"
+        aria-label=${interfaceText(this.interfaceLang, 'signWindow')}
         ?hidden=${!this.open}
         @keydown=${(e: KeyboardEvent) => {
           if (e.key === 'Escape') {
@@ -425,22 +449,28 @@ export class SignLanguageWindow extends LitElement {
         <div class="title-bar">
           <div
             class="drag-handle"
+            part="focus-ring"
             role="button"
             tabindex="0"
-            aria-label="Move sign language window (use arrow keys to move, Shift+arrow to resize)"
+            aria-label=${interfaceText(this.interfaceLang, 'moveSignWindow')}
             @pointerdown=${this.handleDragPointerDown}
             @keydown=${this.handleMoveKeydown}
           >
-            <span class="window-title">Sign Language</span>
+            <span class="window-title"
+              >${interfaceText(this.interfaceLang, 'signWindowTitle')}</span
+            >
           </div>
           <button
             type="button"
             class="close-btn"
+            part="focus-ring"
             @click=${this.close}
-            aria-label="Close sign language window"
+            aria-label=${interfaceText(this.interfaceLang, 'closeSignWindow')}
           >
             <span aria-hidden="true">✕</span>
-            <span class="visually-hidden">Close sign language window</span>
+            <span class="visually-hidden"
+              >${interfaceText(this.interfaceLang, 'closeSignWindow')}</span
+            >
           </button>
         </div>
 
@@ -448,7 +478,7 @@ export class SignLanguageWindow extends LitElement {
           <video
             playsinline
             muted
-            aria-label="Ethiopian Sign Language interpreter video"
+            aria-label=${interfaceText(this.interfaceLang, 'signVideo')}
             src=${this.src || ''}
           ></video>
         </div>
@@ -456,11 +486,14 @@ export class SignLanguageWindow extends LitElement {
         <button
           type="button"
           class="resize-handle"
-          aria-label="Resize sign language window (use arrow keys)"
+          part="focus-ring"
+          aria-label=${interfaceText(this.interfaceLang, 'resizeSignWindow')}
           @pointerdown=${this.handleResizePointerDown}
           @keydown=${this.handleResizeKeydown}
         >
-          <span class="visually-hidden">Resize sign language window</span>
+          <span class="visually-hidden"
+            >${interfaceText(this.interfaceLang, 'resizeSignWindow')}</span
+          >
         </button>
       </section>
     `;

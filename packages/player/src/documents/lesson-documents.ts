@@ -1,6 +1,8 @@
 import { webUrl, type LessonDocument } from '@savanna/contracts';
 import { css, html, nothing, type TemplateResult } from 'lit';
 
+import { interfaceText } from '../labels';
+
 export interface LessonDocumentLink {
   title: string;
   language: string;
@@ -29,24 +31,40 @@ export function lessonDocumentLinks(
 
 export function renderLessonDocuments(
   links: readonly LessonDocumentLink[],
+  headingId = HEADING_ID,
+  lang = '',
 ): TemplateResult | typeof nothing {
   if (links.length === 0) return nothing;
   return html`
-    <nav class="lesson-documents" aria-labelledby=${HEADING_ID}>
-      <h2 id=${HEADING_ID}>Lesson documents</h2>
+    <nav class="lesson-documents" part="documents" aria-labelledby=${headingId}>
+      <h2 id=${headingId}>${interfaceText(lang, 'lessonDocuments')}</h2>
       <ul>
-        ${links.map(renderDocument)}
+        ${links.map((link) => renderDocument(link, lang))}
       </ul>
     </nav>
   `;
 }
 
-function renderDocument(link: LessonDocumentLink): TemplateResult {
+function renderDocument(link: LessonDocumentLink, lang: string): TemplateResult {
   const language = link.language === '' ? nothing : link.language;
   return html`
     <li>
-      ${renderCopy(link.html, `${link.title}, HTML`, language)}
-      ${renderCopy(link.pdf, `${link.title}, PDF`, language)}
+      ${renderCopy(
+        link.html,
+        interfaceText(lang, 'documentLink', {
+          title: link.title,
+          format: interfaceText(lang, 'htmlCopy'),
+        }),
+        language,
+      )}
+      ${renderCopy(
+        link.pdf,
+        interfaceText(lang, 'documentLink', {
+          title: link.title,
+          format: interfaceText(lang, 'pdfCopy'),
+        }),
+        language,
+      )}
     </li>
   `;
 }
@@ -56,7 +74,9 @@ function renderCopy(
   name: string,
   language: string | typeof nothing,
 ): TemplateResult | typeof nothing {
-  return href === null ? nothing : html`<a href=${href} lang=${language}>${name}</a>`;
+  return href === null
+    ? nothing
+    : html`<a href=${href} lang=${language} part="focus-ring">${name}</a>`;
 }
 
 export const lessonDocumentStyles = css`
