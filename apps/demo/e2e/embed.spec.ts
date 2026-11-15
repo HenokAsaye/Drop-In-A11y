@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { LESSON, mockLesson } from './fixtures';
+
 test.describe('script-tag integration (spec 3, 11.1)', () => {
   test('host page loads the plugin with a plain script tag', async ({ page }) => {
     await page.goto('/');
@@ -16,7 +18,18 @@ test.describe('script-tag integration (spec 3, 11.1)', () => {
     await expect(page.getByRole('region', { name: 'Lesson player' })).toBeVisible();
   });
 
-  test.fixme('plugin loads lesson networking-101 from the API', async () => {});
+  test('plugin loads lesson networking-101 from the API', async ({ page }) => {
+    const requested: string[] = [];
+    page.on('request', (request) => requested.push(new URL(request.url()).pathname));
+    await mockLesson(page);
+
+    await page.goto('/');
+
+    const video = page.getByLabel(LESSON.title, { exact: true });
+    await expect(video).toHaveAttribute('src', LESSON.media.video);
+    await expect(page.locator('savanna-player')).toHaveAttribute('lesson-id', 'networking-101');
+    expect(requested).toContain('/api/v1/lessons/networking-101');
+  });
   test.fixme('video playback works', async () => {});
 
   test('switching between English and Amharic captions', async ({ page }) => {
