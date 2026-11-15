@@ -449,6 +449,7 @@ export class SignLanguageWindow extends LitElement {
         <div class="title-bar">
           <div
             class="drag-handle"
+            part="focus-ring"
             role="button"
             tabindex="0"
             aria-label=${interfaceText(this.interfaceLang, 'moveSignWindow')}
@@ -462,6 +463,7 @@ export class SignLanguageWindow extends LitElement {
           <button
             type="button"
             class="close-btn"
+            part="focus-ring"
             @click=${this.close}
             aria-label=${interfaceText(this.interfaceLang, 'closeSignWindow')}
           >
@@ -484,6 +486,7 @@ export class SignLanguageWindow extends LitElement {
         <button
           type="button"
           class="resize-handle"
+          part="focus-ring"
           aria-label=${interfaceText(this.interfaceLang, 'resizeSignWindow')}
           @pointerdown=${this.handleResizePointerDown}
           @keydown=${this.handleResizeKeydown}

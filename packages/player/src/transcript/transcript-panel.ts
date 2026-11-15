@@ -192,6 +192,7 @@ export class TranscriptPanel extends LitElement {
         >
           <button
             type="button"
+            part="focus-ring"
             aria-pressed=${language === 'en' ? 'true' : 'false'}
             @click=${() => this.chooseLanguage('en')}
           >
@@ -199,6 +200,7 @@ export class TranscriptPanel extends LitElement {
           </button>
           <button
             type="button"
+            part="focus-ring"
             lang="am"
             aria-pressed=${language === 'am' ? 'true' : 'false'}
             @click=${() => this.chooseLanguage('am')}
@@ -209,7 +211,13 @@ export class TranscriptPanel extends LitElement {
         <label for="transcript-search"
           >${interfaceText(this.interfaceLang, 'searchTranscript')}</label
         >
-        <input id="transcript-search" type="search" .value=${this.query} @input=${this.onSearch} />
+        <input
+          id="transcript-search"
+          part="focus-ring"
+          type="search"
+          .value=${this.query}
+          @input=${this.onSearch}
+        />
         <div class="segments" @scroll=${this.onManualScroll}>
           ${visible.map((index) => {
             const segment = this.segments[index];
@@ -220,6 +228,7 @@ export class TranscriptPanel extends LitElement {
                 <button
                   type="button"
                   class="sentence"
+                  part="focus-ring"
                   data-index=${index}
                   lang=${language}
                   aria-current=${active ? 'true' : nothing}
@@ -230,6 +239,7 @@ export class TranscriptPanel extends LitElement {
                 <button
                   type="button"
                   class="bookmark-sentence"
+                  part="focus-ring"
                   aria-label=${interfaceText(this.interfaceLang, 'bookmarkSentence', {
                     text: segment.text,
                   })}

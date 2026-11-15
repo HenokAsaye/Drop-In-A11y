@@ -36,7 +36,7 @@ export function renderLessonDocuments(
 ): TemplateResult | typeof nothing {
   if (links.length === 0) return nothing;
   return html`
-    <nav class="lesson-documents" aria-labelledby=${headingId}>
+    <nav class="lesson-documents" part="documents" aria-labelledby=${headingId}>
       <h2 id=${headingId}>${interfaceText(lang, 'lessonDocuments')}</h2>
       <ul>
         ${links.map((link) => renderDocument(link, lang))}
@@ -74,7 +74,9 @@ function renderCopy(
   name: string,
   language: string | typeof nothing,
 ): TemplateResult | typeof nothing {
-  return href === null ? nothing : html`<a href=${href} lang=${language}>${name}</a>`;
+  return href === null
+    ? nothing
+    : html`<a href=${href} lang=${language} part="focus-ring">${name}</a>`;
 }
 
 export const lessonDocumentStyles = css`

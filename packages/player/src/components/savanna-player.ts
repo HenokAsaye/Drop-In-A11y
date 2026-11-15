@@ -720,6 +720,7 @@ export class SavannaPlayer extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.publishFocusPart();
     this.bindMediaPreferences();
     this.addEventListener('keydown', this.onKeyDown);
     document.addEventListener('fullscreenchange', this.handleFullscreenChange);
@@ -741,6 +742,16 @@ export class SavannaPlayer extends LitElement {
     this.abortController = null;
     this.transcriptRequestId += 1;
     super.disconnectedCallback();
+  }
+
+  private publishFocusPart(): void {
+    const names = (this.getAttribute('exportparts') ?? '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part !== '');
+    if (names.includes('focus-ring')) return;
+    names.push('focus-ring');
+    this.setAttribute('exportparts', names.join(', '));
   }
 
   private bindMediaPreferences(): void {
@@ -1056,6 +1067,7 @@ export class SavannaPlayer extends LitElement {
             <button
               type="button"
               class="control-btn offline-btn"
+              part="focus-ring"
               data-mode=${mode}
               aria-disabled=${busy ? 'true' : 'false'}
               @click=${() => void this.downloadLesson(mode)}
@@ -1069,6 +1081,7 @@ export class SavannaPlayer extends LitElement {
             ? html`<button
                 type="button"
                 class="control-btn offline-remove"
+                part="focus-ring"
                 @click=${() => void this.removeDownload()}
               >
                 ${this.text('removeDownload')}
@@ -1172,6 +1185,7 @@ export class SavannaPlayer extends LitElement {
             @ended=${this.handleVideoEnded}
           ></video>
           <savanna-sign-language
+            exportparts="focus-ring"
             .src=${signLanguageSource}
             .interfaceLang=${this.lang}
             ?reduced-motion=${this.reducedMotion}
@@ -1179,12 +1193,18 @@ export class SavannaPlayer extends LitElement {
             @savanna-sign-language-close=${this.handleSignLanguageClose}
           ></savanna-sign-language>
         </div>
-        <div class="controls-toolbar" role="toolbar" aria-label=${this.text('mediaControls')}>
+        <div
+          class="controls-toolbar"
+          part="toolbar"
+          role="toolbar"
+          aria-label=${this.text('mediaControls')}
+        >
           ${
             this.status === 'ready' && this.resumeOffer !== null
               ? html`<button
                   type="button"
                   class="control-btn resume-btn"
+                  part="focus-ring"
                   @click=${this.continueFromSaved}
                 >
                   ${this.text('continueFrom', { time: formatTime(this.resumeOffer) })}
@@ -1194,6 +1214,7 @@ export class SavannaPlayer extends LitElement {
           <button
             type="button"
             class="control-btn play-btn"
+            part="focus-ring"
             @click=${this.togglePlay}
             aria-label=${this.isPaused ? this.text('play') : this.text('pause')}
           >
@@ -1209,6 +1230,7 @@ export class SavannaPlayer extends LitElement {
               id="seek-control"
               type="range"
               class="control-range seek-range"
+              part="focus-ring"
               min="0"
               max=${Number.isFinite(this.duration) && this.duration > 0 ? this.duration : 100}
               step="0.1"
@@ -1228,6 +1250,7 @@ export class SavannaPlayer extends LitElement {
           <button
             type="button"
             class="control-btn mute-btn"
+            part="focus-ring"
             @click=${this.toggleMute}
             aria-label=${this.isMuted ? this.text('unmute') : this.text('mute')}
           >
@@ -1243,6 +1266,7 @@ export class SavannaPlayer extends LitElement {
               id="volume-control"
               type="range"
               class="control-range volume-range"
+              part="focus-ring"
               min="0"
               max="1"
               step="0.05"
@@ -1258,6 +1282,7 @@ export class SavannaPlayer extends LitElement {
           <button
             type="button"
             class="control-btn speed-btn"
+            part="focus-ring"
             @click=${this.cyclePlaybackSpeed}
             aria-label=${this.text('playbackSpeed', { rate: this.playbackRate })}
           >
@@ -1270,6 +1295,7 @@ export class SavannaPlayer extends LitElement {
           <button
             type="button"
             class="control-btn copy-link-btn"
+            part="focus-ring"
             @click=${() => void this.copyTimestampLink()}
           >
             ${this.text('copyLink', { time: formatTime(this.currentTime) })}
@@ -1279,6 +1305,7 @@ export class SavannaPlayer extends LitElement {
           <button
             type="button"
             class="control-btn fullscreen-btn"
+            part="focus-ring"
             @click=${this.toggleFullscreen}
             aria-label=${this.isFullscreen ? this.text('exitFullscreen') : this.text('fullscreen')}
           >
@@ -1293,6 +1320,7 @@ export class SavannaPlayer extends LitElement {
               ? html`<button
                   type="button"
                   class="control-btn sign-language-btn"
+                  part="focus-ring"
                   @click=${this.toggleSignLanguage}
                   aria-label=${this.text('signLanguage')}
                   aria-pressed=${this.signLanguageOpen ? 'true' : 'false'}
@@ -1307,6 +1335,7 @@ export class SavannaPlayer extends LitElement {
               ? html`<button
                   type="button"
                   class="control-btn audio-description-btn"
+                  part="focus-ring"
                   @click=${this.toggleAudioDescription}
                   aria-label=${this.text('audioDescription')}
                   aria-pressed=${this.audioDescriptionEnabled ? 'true' : 'false'}
@@ -1319,6 +1348,7 @@ export class SavannaPlayer extends LitElement {
           <button
             type="button"
             class="control-btn shortcut-help-btn"
+            part="focus-ring"
             aria-expanded=${this.shortcutHelpOpen ? 'true' : 'false'}
             aria-controls="shortcut-help"
             @click=${this.toggleShortcutHelp}
@@ -1347,6 +1377,7 @@ export class SavannaPlayer extends LitElement {
         ${
           this.status === 'ready'
             ? html`<savanna-transcript
+                exportparts="focus-ring"
                 .segments=${this.transcriptSegments}
                 .currentTime=${this.currentTime}
                 .language=${this.transcriptLanguage}
@@ -1388,6 +1419,7 @@ export class SavannaPlayer extends LitElement {
         <button
           type="button"
           class="control-btn download-transcript-btn"
+          part="focus-ring"
           @click=${this.downloadTranscript}
         >
           ${this.text('downloadTranscript')}
@@ -1395,6 +1427,7 @@ export class SavannaPlayer extends LitElement {
         <button
           type="button"
           class="control-btn text-lesson-btn"
+          part="focus-ring"
           aria-expanded=${this.textLessonOpen ? 'true' : 'false'}
           aria-controls="text-lesson"
           @click=${this.toggleTextLesson}
@@ -1422,6 +1455,7 @@ export class SavannaPlayer extends LitElement {
                 <button
                   type="button"
                   class="chapter-btn"
+                  part="focus-ring"
                   @click=${() => this.seekFromUser(chapter.start)}
                 >
                   <span class="chapter-name" lang=${this.lesson?.language || nothing}
@@ -1457,6 +1491,7 @@ export class SavannaPlayer extends LitElement {
                         <button
                           type="button"
                           class="bookmark-btn"
+                          part="focus-ring"
                           @click=${() => this.seekFromUser(bookmark.start)}
                         >
                           <span class="sentence-time">
@@ -1468,6 +1503,7 @@ export class SavannaPlayer extends LitElement {
                         <button
                           type="button"
                           class="control-btn bookmark-remove"
+                          part="focus-ring"
                           aria-label=${this.text('removeBookmark', {
                             time: formatTime(bookmark.start),
                             text: bookmark.text,
@@ -1505,6 +1541,7 @@ export class SavannaPlayer extends LitElement {
                       <button
                         type="button"
                         class="text-lesson-sentence"
+                        part="focus-ring"
                         @click=${() => this.seekFromUser(segment.start)}
                       >
                         <span class="sentence-time">
@@ -1516,6 +1553,7 @@ export class SavannaPlayer extends LitElement {
                       <button
                         type="button"
                         class="control-btn text-lesson-bookmark"
+                        part="focus-ring"
                         lang=${uiLanguage(this.lang)}
                         aria-label=${this.text('bookmarkSentence', { text: segment.text })}
                         @click=${() => this.saveSentenceBookmark(segment.start, segment.text)}
@@ -1611,6 +1649,7 @@ export class SavannaPlayer extends LitElement {
           <label for="caption-enabled">${this.text('showCaptions')}</label>
           <input
             id="caption-enabled"
+            part="focus-ring"
             type="checkbox"
             .checked=${settings.enabled}
             @change=${this.onCaptionsEnabled}
@@ -1620,6 +1659,7 @@ export class SavannaPlayer extends LitElement {
           <label for="caption-language">${this.text('captionLanguage')}</label>
           <select
             id="caption-language"
+            part="focus-ring"
             .value=${settings.language}
             @change=${this.onCaptionLanguage}
           >
@@ -1637,6 +1677,7 @@ export class SavannaPlayer extends LitElement {
             id="caption-size"
             type="range"
             class="control-range caption-size"
+            part="focus-ring"
             min=${MIN_CAPTION_FONT_SCALE}
             max=${MAX_CAPTION_FONT_SCALE}
             step="0.25"
@@ -1651,6 +1692,7 @@ export class SavannaPlayer extends LitElement {
           <input
             id="caption-text"
             class="caption-color"
+            part="focus-ring"
             type="color"
             .value=${textColor}
             ?disabled=${settings.highContrast}
@@ -1662,6 +1704,7 @@ export class SavannaPlayer extends LitElement {
           <input
             id="caption-background"
             class="caption-color"
+            part="focus-ring"
             type="color"
             .value=${backgroundColor}
             ?disabled=${settings.highContrast}
@@ -1675,6 +1718,7 @@ export class SavannaPlayer extends LitElement {
           </label>
           <input
             id="caption-contrast"
+            part="focus-ring"
             type="checkbox"
             .checked=${settings.highContrast}
             @change=${this.onCaptionContrast}
