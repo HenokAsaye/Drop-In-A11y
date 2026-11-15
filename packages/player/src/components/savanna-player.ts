@@ -36,6 +36,12 @@ import {
   type CaptionSettings,
 } from '../config';
 import { AudioDescriptionTrack } from '../audio-description/audio-description-track';
+import {
+  lessonDocumentLinks,
+  lessonDocumentStyles,
+  renderLessonDocuments,
+  type LessonDocumentLink,
+} from '../documents/lesson-documents';
 import { MediaController } from '../media/media-controller';
 import { MediaSync } from '../media/media-sync';
 import { SIGN_LANGUAGE_TAG, type SignLanguageWindow } from '../sign-language/sign-language-window';
@@ -188,6 +194,7 @@ export class SavannaPlayer extends LitElement {
     }
 
     button:focus-visible,
+    a:focus-visible,
     input:focus-visible,
     select:focus-visible {
       outline: 2px solid #38bdf8;
@@ -335,6 +342,8 @@ export class SavannaPlayer extends LitElement {
       background: #0f172a;
       cursor: pointer;
     }
+
+    ${lessonDocumentStyles}
   `;
 
   declare lessonId: string;
@@ -377,6 +386,7 @@ export class SavannaPlayer extends LitElement {
   private mediaSync: MediaSync | null = null;
   private signLanguageDetach: (() => void) | null = null;
   private audioDescription: AudioDescriptionTrack | null = null;
+  private documentLinks: LessonDocumentLink[] = [];
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const action = resolveShortcut(event, this);
@@ -485,6 +495,7 @@ export class SavannaPlayer extends LitElement {
     this.restoreCaptionSettings(changed);
     if (changed.has('lesson')) {
       this.signLanguageSrc = this.lesson?.media?.signLanguage ?? this.signLanguageSrc;
+      this.documentLinks = lessonDocumentLinks(this.lesson?.documents, document.baseURI);
     }
     if (changed.has('lessonId') || changed.has('apiBase')) this.beginLoad();
     const transcriptInputChanged =
@@ -909,7 +920,8 @@ export class SavannaPlayer extends LitElement {
               ></savanna-transcript>`
             : nothing
         }
-        ${this.renderCaptionControls()} ${this.renderOfflineControls()}
+        ${renderLessonDocuments(this.documentLinks)} ${this.renderCaptionControls()}
+        ${this.renderOfflineControls()}
       </section>
     `;
   }

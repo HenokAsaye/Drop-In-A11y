@@ -1,6 +1,7 @@
 from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
+from app.core.urls import require_media_path, require_web_url
 from app.db.base import Base, TimestampMixin
 
 
@@ -18,3 +19,11 @@ class Career(TimestampMixin, Base):
     certificate_id: Mapped[str | None] = mapped_column(
         ForeignKey("certificates.id", ondelete="SET NULL")
     )
+
+    @validates("application_url")
+    def _check_application_url(self, _key: str, value: str) -> str:
+        return require_web_url(value)
+
+    @validates("audio_summary_path")
+    def _check_audio_summary_path(self, _key: str, value: str | None) -> str | None:
+        return require_media_path(value)

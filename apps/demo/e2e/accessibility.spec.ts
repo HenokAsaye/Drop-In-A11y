@@ -16,6 +16,52 @@ test.describe('automated accessibility (spec 11.2)', () => {
     expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
   });
 
+  test('lesson notes HTML passes axe when opened from the player', async ({ page }) => {
+    const lesson = {
+      id: 'networking-101',
+      title: 'Introduction to Computer Networking',
+      description: 'Learn the fundamentals of computer networking.',
+      language: 'en',
+      media: {
+        video: 'https://media.example/video.mp4',
+        audio: null,
+        signLanguage: null,
+        audioDescription: null,
+        poster: null,
+      },
+      captions: [],
+      transcripts: [],
+      documents: [
+        {
+          title: 'Networking Notes',
+          language: 'en',
+          html: '/documents/networking-101-notes.html',
+          pdf: '/documents/networking-101-notes.pdf',
+        },
+      ],
+    };
+
+    await page.route(/\/api\/v1\/lessons\/networking-101$/, (route) =>
+      route.fulfill({ json: lesson }),
+    );
+    await page.route(/\/api\/v1\/lessons\/networking-101\/transcript/, (route) =>
+      route.fulfill({ json: { language: 'en', segments: [] } }),
+    );
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Networking Notes, HTML' }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Introduction to Computer Networking' }),
+    ).toBeVisible();
+    await expect(page.getByRole('img', { name: /computer connected to a switch/ })).toBeVisible();
+
+    const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
+    const blocking = results.violations.filter(
+      (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+    );
+    expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
+  });
+
   test('skip link is the first focusable element and is visible on focus', async ({ page }) => {
     await page.goto('/');
     await page.keyboard.press('Tab');

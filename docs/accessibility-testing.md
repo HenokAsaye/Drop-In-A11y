@@ -16,7 +16,8 @@ deliberately.
 Follow [testing/manual-test-record.md](testing/manual-test-record.md) for:
 
 1. **Keyboard only.** Every control is reachable and operable; focus is always visible; no traps;
-   shortcuts never fire while typing.
+   shortcuts never fire while typing, and Space presses the focused button or opens the focused
+   link instead of toggling playback.
 2. **NVDA** (Windows, Firefox/Chrome) and **TalkBack** (Android). Controls announce name, role
    and state; status changes are announced through a polite live region.
 3. **200% zoom** and narrow (320 px) viewport. No loss of content or functionality.

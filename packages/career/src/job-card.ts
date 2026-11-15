@@ -1,4 +1,4 @@
-import { API_VERSION_PREFIX, type Career } from '@savanna/contracts';
+import { API_VERSION_PREFIX, webUrl, type Career } from '@savanna/contracts';
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 
 import './certificate';
@@ -85,8 +85,8 @@ export class JobCard extends LitElement {
     const organization = present(job.organization);
     const description = present(job.description);
     const accommodations = present(job.accommodations);
-    const applicationUrl = present(job.applicationUrl);
-    const audioSummaryUrl = present(job.audioSummaryUrl);
+    const applicationUrl = webUrl(job.applicationUrl, document.baseURI);
+    const audioSummaryUrl = webUrl(job.audioSummaryUrl, document.baseURI);
     const certificate = certificateTarget(job.certificateVerificationUrl);
 
     return html`
@@ -95,8 +95,8 @@ export class JobCard extends LitElement {
         ${organization === '' ? nothing : html`<p>${organization}</p>`}
         ${description === '' ? nothing : html`<p id="job-description">${description}</p>`}
         ${accommodations === '' ? nothing : html`<p>${accommodations}</p>`}
-        ${applicationUrl === '' ? nothing : html`<a href=${applicationUrl}>${applyName(title, organization)}</a>`}
-        ${audioSummaryUrl === '' ? nothing : renderAudio(audioSummaryUrl, description, title)}
+        ${applicationUrl === null ? nothing : html`<a href=${applicationUrl}>${applyName(title, organization)}</a>`}
+        ${audioSummaryUrl === null ? nothing : renderAudio(audioSummaryUrl, description, title)}
         ${
           certificate === undefined
             ? nothing

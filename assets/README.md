@@ -23,6 +23,18 @@ a CDN; the API stores **paths** and returns **URLs** — it never streams these 
 - `networking-101-en.json`, `networking-101-am.json`
 - `networking-101-notes.html`, `networking-101-notes.pdf`
 
+## Rebuilding a document PDF
+
+The HTML handout is the source. After editing it, rebuild the tagged PDF (PDF/UA-1) next to it:
+
+```sh
+uv run scripts/build_notes_pdf.py assets/documents/networking-101-notes.html
+```
+
+`uv` installs the pinned WeasyPrint version on first run. WeasyPrint needs Pango from the system
+(`libpango-1.0-0` on Debian and Ubuntu). Check the new PDF with PAC or veraPDF and a screen reader,
+and record the result in `docs/testing/manual-test-record.md`.
+
 All media must be prepared and **reviewed by people** (captions, Amharic translation, sign-language
 interpretation, audio description). Do not present any of it as automatically generated.
 

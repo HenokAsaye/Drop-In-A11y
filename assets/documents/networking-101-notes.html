@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Networking Notes — Introduction to Computer Networking</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f7f4ef;
+        --ink: #1c1917;
+        --rule: #44403c;
+        --link: #0c4a6e;
+        --head: #e7e5e4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: "Noto Sans", "Segoe UI", sans-serif;
+        font-size: 1.125rem;
+        line-height: 1.6;
+      }
+
+      main {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 1.5rem 1.25rem 3rem;
+      }
+
+      h1 {
+        margin: 0 0 0.75rem;
+        font-size: 2rem;
+        line-height: 1.2;
+      }
+
+      h2 {
+        margin: 2rem 0 0.75rem;
+        font-size: 1.5rem;
+        line-height: 1.3;
+      }
+
+      h3 {
+        margin: 1.5rem 0 0.5rem;
+        font-size: 1.25rem;
+        line-height: 1.3;
+      }
+
+      p,
+      ul {
+        margin: 0 0 1rem;
+      }
+
+      a {
+        color: var(--link);
+        text-underline-offset: 0.15em;
+      }
+
+      a:focus-visible {
+        outline: 3px solid var(--link);
+        outline-offset: 3px;
+      }
+
+      img {
+        display: block;
+        width: 100%;
+        max-width: 40rem;
+        height: auto;
+        margin: 0 0 1rem;
+        border: 1px solid var(--rule);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0 0 1rem;
+      }
+
+      caption {
+        margin: 0 0 0.5rem;
+        text-align: left;
+        font-weight: 700;
+      }
+
+      th,
+      td {
+        padding: 0.5rem;
+        border: 1px solid var(--rule);
+        text-align: left;
+        vertical-align: top;
+        overflow-wrap: anywhere;
+      }
+
+      th {
+        background: var(--head);
+      }
+
+      @media print {
+        @page {
+          size: A4;
+          margin: 16mm 18mm;
+        }
+
+        body {
+          background: #ffffff;
+          font-size: 11pt;
+        }
+
+        main {
+          max-width: none;
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Introduction to Computer Networking</h1>
+      <p>
+        These notes explain the pictures in the networking lesson. They were written and reviewed
+        with the lesson. They are a handout, not a transcript of every spoken word.
+      </p>
+
+      <h2>How a message crosses a network</h2>
+      <p>
+        A message leaves a computer, crosses a switch on the local network, and then a router
+        sends it toward another network.
+      </p>
+      <img
+        src="networking-101-topology.svg"
+        width="640"
+        height="160"
+        alt="A computer connected to a switch, and that switch connected to a router."
+      />
+      <p>
+        <a href="#switch-and-router">Compare a switch and a router</a>
+      </p>
+
+      <h3>Addresses</h3>
+      <p>
+        The switch uses a hardware address to deliver a message on one local network. The router
+        uses an IP address to choose a path between networks.
+      </p>
+
+      <h2 id="switch-and-router">Compare a switch and a router</h2>
+      <table>
+        <caption>
+          What a switch and a router each do
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Device</th>
+            <th scope="col">What it connects</th>
+            <th scope="col">Address it uses</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Switch</th>
+            <td>Devices on one local network</td>
+            <td>Hardware address</td>
+          </tr>
+          <tr>
+            <th scope="row">Router</th>
+            <td>Separate networks</td>
+            <td>IP address</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Keep a copy</h2>
+      <p data-copy="html">
+        The same notes are also available as a tagged PDF. Open
+        <a href="networking-101-notes.pdf">Networking Notes PDF</a>
+        from this folder, or use the document links on the lesson player.
+      </p>
+      <p data-copy="pdf" hidden>
+        The same notes are also available as a web page. Open
+        <a href="networking-101-notes.html">Networking Notes HTML</a>
+        from this folder, or use the document links on the lesson player.
+      </p>
+    </main>
+  </body>
+</html>
