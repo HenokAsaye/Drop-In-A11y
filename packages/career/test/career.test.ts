@@ -78,6 +78,20 @@ describe('job card (spec 4.8)', () => {
     expect(link?.textContent).not.toBe(job.applicationUrl);
   });
 
+  it('drops an application link or audio summary that is not an http address', async () => {
+    const card = await mount({
+      job: {
+        ...job,
+        applicationUrl: 'javascript:alert(document.cookie)',
+        audioSummaryUrl: 'data:audio/mpeg;base64,AAAA',
+      },
+    });
+
+    expect(card.shadowRoot?.querySelector('a')).toBeNull();
+    expect(card.shadowRoot?.querySelector('audio')).toBeNull();
+    expect(card.shadowRoot?.textContent).toContain(job.title);
+  });
+
   it('audio summary has accessible play controls and a text alternative', async () => {
     const card = await mount({ job });
     const audio = card.shadowRoot?.querySelector('audio');
