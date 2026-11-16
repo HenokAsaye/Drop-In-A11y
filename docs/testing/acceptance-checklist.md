@@ -19,9 +19,9 @@ From specification section 11. "Verified by" names the automated test that prove
 | F10 | Transcript highlights the current sentence | `player/test/transcript.test.ts` | ☐ |
 | F11 | Clicking a transcript sentence seeks the video | `player/test/transcript.test.ts`, e2e | ☑ |
 | F12 | Audio and text resources can be downloaded | `offline/test/storage.test.ts` | ☐ |
-| F13 | Downloaded resources work offline | `e2e/accessibility.spec.ts` (offline), Manual | ☐ |
+| F13 | Downloaded resources work offline | `e2e/accessibility.spec.ts` (offline), [Manual](manual-test-record.md) | ☐ |
 | F14 | Accessible HTML and tagged PDF resources are available | API `documents` endpoint, Manual (PAC / NVDA) | ☐ |
-| F15 | Career cards work at 200% zoom | `e2e/accessibility.spec.ts`, Manual | ☑ e2e · ☐ manual |
+| F15 | Career cards work at 200% zoom | `e2e/accessibility.spec.ts`, [Manual](manual-test-record.md) | ☑ e2e · ☐ manual |
 | F16 | Career audio summaries work | `career/test/career.test.ts` | ☐ |
 | F17 | Certificate verification links work | `career/test/career.test.ts`, API verify endpoint | ☐ |
 
@@ -29,15 +29,15 @@ From specification section 11. "Verified by" names the automated test that prove
 
 | # | Criterion | Verified by | Status |
 |---|-----------|-------------|--------|
-| A1 | All interactive controls work using a keyboard | e2e keyboard test, Manual | ☑ e2e · ☐ manual |
-| A2 | Keyboard focus is always visible | Manual, `player/test/savanna-player.test.ts` | ☐ |
-| A3 | Screen readers announce controls meaningfully | Manual (NVDA, TalkBack) | ☐ |
-| A4 | There are no keyboard traps | e2e keyboard-trap test, Manual | ☑ e2e · ☐ manual |
-| A5 | Captions are readable and customizable | `player/test/captions.test.ts`, Manual | ☐ |
-| A6 | Content remains usable at 200% zoom | e2e zoom test, Manual | ☑ e2e · ☐ manual |
-| A7 | The interface works with sound off | Manual | ☐ |
+| A1 | All interactive controls work using a keyboard | e2e keyboard test, [Manual](manual-test-record.md) | ☑ e2e · ☐ manual |
+| A2 | Keyboard focus is always visible | [Manual](manual-test-record.md), `player/test/savanna-player.test.ts` | ☐ |
+| A3 | Screen readers announce controls meaningfully | [Manual](manual-test-record.md) (NVDA, TalkBack) | ☐ |
+| A4 | There are no keyboard traps | e2e keyboard-trap test, [Manual](manual-test-record.md) | ☑ e2e · ☐ manual |
+| A5 | Captions are readable and customizable | `player/test/captions.test.ts`, [Manual](manual-test-record.md) | ☐ |
+| A6 | Content remains usable at 200% zoom | e2e zoom test, [Manual](manual-test-record.md) | ☑ e2e · ☐ manual |
+| A7 | The interface works with sound off | [Manual](manual-test-record.md) | ☐ |
 | A8 | axe-core reports zero critical and serious violations | `e2e/accessibility.spec.ts` | ☑ |
-| A9 | Manual testing completed with NVDA and other AT | [manual-test-record.md](manual-test-record.md) | ☐ |
+| A9 | Manual testing completed with NVDA and other AT | [manual-test-record.md](manual-test-record.md) | ☐ (session template ready, not yet run) |
 
 ## Demonstration scenario (spec 12)
 

@@ -156,6 +156,42 @@ Lesson:          networking-101 download controls
 | Download progress | Start a package download. | The status shows the current file name and the percent until the download finishes or fails. | Pass in unit tests. Screen reader not run. | The percent counts saved files, because the package does not include file sizes. A visual progress bar repeats that percent and is hidden from assistive technology so the status is the one announcement. |
 | Retry | Fail the lesson, the transcript, or a download, then activate Retry. | One Retry control repeats that request. A finished download is not fetched again. | Pass in unit tests. Screen reader not run. | Retry is a button named “Retry”, so Space activates it. The failure sentences stay the ones the player already uses. |
 
+## Session — full manual pass (Issue #20)
+
+Status: **not yet run.** Fill the header and every Result cell during the session. Do not mark a row
+Pass from the automated tests; they are listed in `acceptance-checklist.md` and are not a
+substitute. Run it once per required row of the environment matrix (keyboard, NVDA, TalkBack,
+200% zoom, sound off, offline), and copy this block for each. File a follow-up issue for every
+Fail and link it in Notes.
+
+```
+Date:            YYYY-MM-DD
+Tester:
+Build / commit:  (run `git rev-parse --short HEAD`)
+AT + version:    (for example NVDA 2025.x, TalkBack x.y)
+Browser + OS:
+Lesson:          networking-101, on the demo host page
+```
+
+| Check | Steps | Expected | Result (Pass/Fail) | Notes / issue link |
+| ----- | ----- | -------- | ------------------ | ------------------ |
+| Reach every control by Tab / Shift+Tab | Tab through the player, sign window, transcript, documents and career card | Logical order, nothing skipped | | |
+| Focus visible | Tab through all controls | Clear indicator on every control | | |
+| No keyboard trap | Tab into and out of the player, sign-language window and transcript | Focus can always leave | | |
+| Shortcuts (Space, ←, →, ↑, ↓, M, F) | Focus the player and press each key. Then focus Mute and a transcript sentence and press Space. | Matches spec 5.1. Space presses the focused button. | | |
+| Control names announced | Navigate with the screen reader | Name, role and state for every control | | |
+| Captions EN / AM | Switch language while playing | Correct track, Ethiopic text renders | | |
+| Caption customization | Change size, colors, high contrast | Applied and readable | | |
+| Sign-language window | Show, move, resize by keyboard and pointer | Works, stays in sync | | |
+| Audio description | Enable and play | Description plays in sync | | |
+| Transcript | Follow along, click a sentence, search | Highlight, seek and search work; segments read aloud | | |
+| Offline after disconnect | Download, go offline, reopen | Audio, text and HTML work without network | | |
+| HTML document | Open Networking Notes, HTML with the screen reader | Headings, reading order, links, table headers, alt text, language | | |
+| PDF document | Open Networking Notes PDF with the screen reader (and PAC if available) | Tagged, correct reading order and language | | |
+| Career card | Navigate by keyboard and screen reader, play summary, open verification | Usable and understandable | | |
+| 200% zoom | Zoom to 200% | No loss of content or function, no horizontal scroll | | |
+| Sound off | Mute the device | All information available visually | | |
+
 ## Known limitations
 
 | Date | Limitation | Impact | Planned fix |
@@ -166,3 +202,5 @@ Lesson:          networking-101 download controls
 | 2026-11-14 | Host sites must serve `savanna-sw.js` from their own origin. | Without it, downloads are saved but offline playback is not set up. The player says so. | Documented in `docs/integration.md` |
 | 2026-11-15 | The networking notes PDF was checked from its structure tree, not with PAC, veraPDF, or a screen reader. | A validator or screen reader may still find a reading-order or table-header problem that the structure tree does not show. | Repeat the PDF check with PAC or veraPDF and NVDA or TalkBack |
 | 2026-11-15 | The offline badge, download progress, and Retry control were not checked with a screen reader. | A screen reader may announce the badge differently from the unit tests. The progress bar is hidden from assistive technology; the status text is the announcement. | Repeat with NVDA or TalkBack |
+| 2026-11-15 | The repository does not contain the lesson video, audio, sign-language video, audio description, or the WebVTT and transcript files (`assets/` has only the notes HTML, PDF and diagram). | A manual session on a fresh checkout cannot play the lesson, hear audio description, or see captions or a sign-language interpreter. The automated e2e suite uses a generated placeholder video and fixture transcripts. | Add the reviewed media, or record which files the tester supplied |
+| 2026-11-15 | All demonstration media must be prepared and reviewed by people. Any placeholder or fixture used in a session is not real lesson content. | Results on placeholder media say nothing about caption quality, Amharic translation, or interpretation. | State in each session which media was real |
