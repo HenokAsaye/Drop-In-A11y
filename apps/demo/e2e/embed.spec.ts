@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { LESSON, mockLesson } from './fixtures';
+
 test.describe('script-tag integration (spec 3, 11.1)', () => {
   test('host page loads the plugin with a plain script tag', async ({ page }) => {
     await page.goto('/');
@@ -16,8 +18,36 @@ test.describe('script-tag integration (spec 3, 11.1)', () => {
     await expect(page.getByRole('region', { name: 'Lesson player' })).toBeVisible();
   });
 
-  test.fixme('plugin loads lesson networking-101 from the API', async () => {});
-  test.fixme('video playback works', async () => {});
+  test('plugin loads lesson networking-101 from the API', async ({ page }) => {
+    const requested: string[] = [];
+    page.on('request', (request) => requested.push(new URL(request.url()).pathname));
+    await mockLesson(page);
+
+    await page.goto('/');
+
+    const video = page.getByLabel(LESSON.title, { exact: true });
+    await expect(video).toHaveAttribute('src', LESSON.media.video);
+    await expect(page.locator('savanna-player')).toHaveAttribute('lesson-id', 'networking-101');
+    expect(requested).toContain('/api/v1/lessons/networking-101');
+  });
+  test('video playback works', async ({ page }) => {
+    await mockLesson(page);
+    await page.goto('/');
+
+    const video = page.locator('savanna-player video.lesson-video');
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState))
+      .toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
+      .toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    expect(await video.evaluate((el: HTMLVideoElement) => el.paused)).toBe(true);
+  });
 
   test('switching between English and Amharic captions', async ({ page }) => {
     await page.goto('/');
@@ -48,6 +78,61 @@ test.describe('script-tag integration (spec 3, 11.1)', () => {
     await expect(page.getByLabel('Background color')).toHaveValue('#00aa00');
   });
 
-  test.fixme('sign-language window can be shown, moved and resized', async () => {});
-  test.fixme('clicking a transcript sentence seeks the video', async () => {});
+  test('sign-language window can be shown, moved and resized', async ({ page }) => {
+    await mockLesson(page);
+    await page.goto('/');
+
+    const toggle = page.getByRole('button', { name: 'Ethiopian Sign Language', exact: true });
+    const windowRegion = page.getByRole('region', { name: 'Ethiopian Sign Language interpreter' });
+    const host = page.locator('savanna-sign-language');
+    // Inline style is relative to the video wrapper, so page scrolling cannot skew it.
+    const box = () =>
+      host.evaluate((el: HTMLElement) => ({
+        x: parseFloat(el.style.left),
+        y: parseFloat(el.style.top),
+        width: parseFloat(el.style.width),
+        height: parseFloat(el.style.height),
+      }));
+    await expect(windowRegion).toBeHidden();
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(windowRegion).toBeVisible();
+
+    const before = await box();
+
+    const move = page.getByRole('button', { name: /Move sign language window/i });
+    await move.focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowDown');
+    const moved = await box();
+    expect(moved.x).toBeGreaterThan(before.x);
+    expect(moved.y).toBeGreaterThan(before.y);
+
+    const resize = page.getByRole('button', { name: /Resize sign language window/i });
+    await resize.focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowDown');
+    const resized = await box();
+    expect(resized.width).toBeGreaterThan(moved.width);
+    expect(resized.height).toBeGreaterThan(moved.height);
+
+    await page.getByRole('button', { name: /Close sign language window/i }).click();
+    await expect(windowRegion).toBeHidden();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  });
+  test('clicking a transcript sentence seeks the video', async ({ page }) => {
+    await mockLesson(page);
+    await page.goto('/');
+
+    const video = page.locator('savanna-player video.lesson-video');
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState))
+      .toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Every device has an address.', exact: true }).click();
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
+      .toBeCloseTo(4, 0);
+  });
 });
